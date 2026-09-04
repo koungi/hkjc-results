@@ -1,4 +1,4 @@
-name: HKJC Results Collector
+name: HKJC Historical Results Collector
 
 on:
   workflow_dispatch:
@@ -6,15 +6,12 @@ on:
       start_date:
         description: "Start date YYYY-MM-DD"
         required: true
-        default: "2006-12-01"
+        default: "2006-01-01"
 
       end_date:
         description: "End date YYYY-MM-DD"
         required: true
         default: "2006-12-31"
-
-  schedule:
-    - cron: "27 3 * * *"
 
 permissions:
   contents: write
@@ -25,22 +22,22 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
+      - name: Install packages
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run collector
+      - name: Run HKJC scraper
         env:
-          START_DATE: ${{ github.event.inputs.start_date || '2006-12-01' }}
-          END_DATE: ${{ github.event.inputs.end_date || '2006-12-31' }}
+          START_DATE: ${{ github.event.inputs.start_date }}
+          END_DATE: ${{ github.event.inputs.end_date }}
         run: |
           python hkjc.py
 
@@ -51,6 +48,9 @@ jobs:
 
           git add results/
 
-          git diff --cached --quiet || git commit -m "Update HKJC results"
-
-          git push
+          if git diff --cached --quiet; then
+            echo "No new results to commit"
+          else
+            git commit -m "Add HKJC results ${{ github.event.inputs.start_date }} to ${{ github.event.inputs.end_date }}"
+            git push
+          fi
