@@ -7,29 +7,27 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-BASE_URL = "https://racing.hkjc.com/en-us/local/information/localresults"
+
+BASE_URL = "https://racing.hkjc.com/en-us/local/information/archive/localresults"
 
 START_DATE = os.getenv("START_DATE", "2006-12-01")
 END_DATE = os.getenv("END_DATE", "2006-12-31")
 
 OUTPUT_DIR = "results"
-
-# Be polite to the public website.
 DELAY_SECONDS = 2
+
 
 session = requests.Session()
 
-session.headers.update(
-    {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/150.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-)
+session.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/150.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "en-US,en;q=0.9",
+})
 
 
 def date_range(start_date, end_date):
@@ -40,42 +38,64 @@ def date_range(start_date, end_date):
         current += timedelta(days=1)
 
 
-def request_page(race_date, racecourse=None, race_no=None):
-    params = {
-        "racedate": race_date.strftime("%Y/%m/%d")
-    }
+def build_url(race_date, racecourse=None, race_no=None):
+    date_string = race_date.strftime("%Y/%m/%d")
+
+    url = f"{BASE_URL}?racedate={date_string}"
 
     if racecourse:
-        params["Racecourse"] = racecourse
+        url += f"&Racecourse={racecourse}"
 
     if race_no:
-        params["RaceNo"] = race_no
+        url += f"&RaceNo={race_no}"
 
-    response = session.get(
-        BASE_URL,
-        params=params,
-        timeout=30,
+    return url
+
+
+def request_page(race_date, racecourse=None, race_no=None):
+    url = build_url(
+        race_date,
+        racecourse,
+        race_no
     )
 
-    print(
-        f"GET {response.url} "
-        f"-> {response.status_code}"
-    )
+    try:
+        response = session.get(
+            url,
+            timeout=30
+        )
 
-    response.raise_for_status()
+        print(
+            f"GET {url} "
+            f"-> {response.status_code}"
+        )
 
-    return response
+        response.raise_for_status()
+
+        return response
+
+    except requests.RequestException as exc:
+        print(
+            f"Request failed: {exc}"
+        )
+
+        return None
 
 
 def detect_meeting(html):
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
 
-    meeting_text = soup.select_one(".raceMeeting_select")
+    meeting_element = soup.select_one(
+        ".raceMeeting_select"
+    )
 
-    if not meeting_text:
+    if meeting_element is None:
         return None
 
-    text = meeting_text.get_text(
+    text = meeting_element.get_text(
         " ",
         strip=True
     )
@@ -90,58 +110,177 @@ def detect_meeting(html):
 
 
 def detect_race_numbers(html):
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
 
     race_numbers = set()
 
+    # Race 1 may already be displayed
+    # and therefore may not have a clickable link.
+    race_one_found = soup.find(
+        string=lambda text:
+        text and "RACE 1" in text.upper()
+    )
+
+    if race_one_found:
+        race_numbers.add(1)
+
+    # Find remaining RaceNo links.
     for link in soup.select(
         'a[href*="RaceNo="]'
     ):
-        href = link.get("href", "")
-
-        if "RaceNo=" not in href:
-            continue
+        href = link.get(
+            "href",
+            ""
+        )
 
         try:
             race_no = href.split(
                 "RaceNo="
-            )[1].split("&")[0]
+            )[1]
+
+            race_no = race_no.split(
+                "&"
+            )[0]
 
             race_numbers.add(
                 int(race_no)
             )
+
         except Exception:
             pass
 
-    # Race 1 is often shown as the current
-    # race and therefore may not have a link.
-    if soup.find(
-        string=lambda x:
-        x and "RACE 1" in x
-    ):
-        race_numbers.add(1)
-
-    return sorted(race_numbers)
+    return sorted(
+        race_numbers
+    )
 
 
-def extract_race_table(
+def extract_race_information(
     html,
     meeting_date,
     racecourse,
     race_no
 ):
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
 
-    performance = soup.select_one(
+    race_table = soup.select_one(
+        ".race_tab table"
+    )
+
+    race_info = {
+        "MeetingDate": meeting_date.strftime(
+            "%Y-%m-%d"
+        ),
+        "Racecourse": racecourse,
+        "RaceNo": race_no,
+        "RaceName": "",
+        "ClassDistance": "",
+        "Going": "",
+        "Course": "",
+        "PrizeMoney": "",
+        "RaceTime": "",
+    }
+
+    if race_table is None:
+        return race_info
+
+    rows = race_table.find_all("tr")
+
+    if len(rows) > 1:
+        cells = rows[1].find_all("td")
+
+        if len(cells) >= 3:
+            race_info["ClassDistance"] = cells[0].get_text(
+                " ",
+                strip=True
+            )
+
+            race_info["Going"] = cells[-1].get_text(
+                " ",
+                strip=True
+            )
+
+    if len(rows) > 2:
+        cells = rows[2].find_all("td")
+
+        if len(cells) >= 3:
+            race_info["RaceName"] = cells[0].get_text(
+                " ",
+                strip=True
+            )
+
+            race_info["Course"] = cells[-1].get_text(
+                " ",
+                strip=True
+            )
+
+    if len(rows) > 3:
+        cells = rows[3].find_all("td")
+
+        if len(cells) >= 1:
+            race_info["PrizeMoney"] = cells[0].get_text(
+                " ",
+                strip=True
+            )
+
+        times = []
+
+        for cell in cells[2:]:
+            value = cell.get_text(
+                " ",
+                strip=True
+            )
+
+            if value:
+                times.append(
+                    value
+                )
+
+        if times:
+            race_info["RaceTime"] = times[-1]
+
+    return race_info
+
+
+def extract_results(
+    html,
+    meeting_date,
+    racecourse,
+    race_no
+):
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
+
+    performance_table = soup.select_one(
         ".performance table"
     )
 
-    if performance is None:
+    if performance_table is None:
         return None
 
-    tables = pd.read_html(
-        StringIO(str(performance))
-    )
+    try:
+        tables = pd.read_html(
+            StringIO(
+                str(
+                    performance_table
+                )
+            )
+        )
+
+    except Exception as exc:
+        print(
+            "Could not parse results table:",
+            exc
+        )
+
+        return None
 
     if not tables:
         return None
@@ -177,7 +316,10 @@ def extract_dividends(
     racecourse,
     race_no
 ):
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
 
     dividend_table = soup.select_one(
         ".dividend_tab table"
@@ -186,9 +328,22 @@ def extract_dividends(
     if dividend_table is None:
         return None
 
-    tables = pd.read_html(
-        StringIO(str(dividend_table))
-    )
+    try:
+        tables = pd.read_html(
+            StringIO(
+                str(
+                    dividend_table
+                )
+            )
+        )
+
+    except Exception as exc:
+        print(
+            "Could not parse dividend table:",
+            exc
+        )
+
+        return None
 
     if not tables:
         return None
@@ -218,33 +373,70 @@ def extract_dividends(
     return df
 
 
-def process_date(meeting_date):
-    print(
-        "\nChecking",
-        meeting_date.strftime(
+def extract_incident_report(
+    html,
+    meeting_date,
+    racecourse,
+    race_no
+):
+    soup = BeautifulSoup(
+        html,
+        "html.parser"
+    )
+
+    incident = soup.select_one(
+        ".race_incident_report .info_p"
+    )
+
+    if incident is None:
+        return None
+
+    return {
+        "MeetingDate": meeting_date.strftime(
             "%Y-%m-%d"
+        ),
+        "Racecourse": racecourse,
+        "RaceNo": race_no,
+        "IncidentReport": incident.get_text(
+            " ",
+            strip=True
+        )
+    }
+
+
+def process_date(meeting_date):
+    print()
+    print(
+        "=" * 60
+    )
+
+    print(
+        "Checking:",
+        meeting_date.strftime(
+            "%Y/%m/%d"
         )
     )
 
-    try:
-        first_response = request_page(
-            meeting_date
-        )
-    except requests.RequestException as exc:
-        print(
-            "Request failed:",
-            exc
-        )
+    print(
+        "=" * 60
+    )
+
+    response = request_page(
+        meeting_date
+    )
+
+    if response is None:
         return
 
     racecourse = detect_meeting(
-        first_response.text
+        response.text
     )
 
-    if not racecourse:
+    if racecourse is None:
         print(
-            "No HK meeting detected."
+            "No HKJC race meeting found."
         )
+
         return
 
     print(
@@ -253,64 +445,98 @@ def process_date(meeting_date):
     )
 
     race_numbers = detect_race_numbers(
-        first_response.text
+        response.text
     )
 
     if not race_numbers:
         print(
             "No races detected."
         )
+
         return
 
     print(
-        "Races:",
+        "Races detected:",
         race_numbers
     )
 
     all_results = []
     all_dividends = []
+    all_race_info = []
+    all_incidents = []
 
     for race_no in race_numbers:
-        try:
-            response = request_page(
-                meeting_date,
-                racecourse,
-                race_no
-            )
 
-            results = extract_race_table(
-                response.text,
-                meeting_date,
-                racecourse,
-                race_no
-            )
+        print()
+        print(
+            f"Processing Race {race_no}"
+        )
 
-            dividends = extract_dividends(
-                response.text,
-                meeting_date,
-                racecourse,
-                race_no
-            )
+        race_response = request_page(
+            meeting_date,
+            racecourse,
+            race_no
+        )
 
-            if results is not None:
-                all_results.append(
-                    results
-                )
+        if race_response is None:
+            continue
 
-                print(
-                    f"Race {race_no}: "
-                    f"{len(results)} runners"
-                )
+        race_info = extract_race_information(
+            race_response.text,
+            meeting_date,
+            racecourse,
+            race_no
+        )
 
-            if dividends is not None:
-                all_dividends.append(
-                    dividends
-                )
+        all_race_info.append(
+            race_info
+        )
 
-        except Exception as exc:
+        results = extract_results(
+            race_response.text,
+            meeting_date,
+            racecourse,
+            race_no
+        )
+
+        if results is not None:
             print(
-                f"Race {race_no} failed:",
-                exc
+                f"Race {race_no}: "
+                f"{len(results)} runners"
+            )
+
+            all_results.append(
+                results
+            )
+
+        else:
+            print(
+                f"Race {race_no}: "
+                "No runner table found"
+            )
+
+        dividends = extract_dividends(
+            race_response.text,
+            meeting_date,
+            racecourse,
+            race_no
+        )
+
+        if dividends is not None:
+            all_dividends.append(
+                dividends
+            )
+
+        incident = extract_incident_report(
+            race_response.text,
+            meeting_date,
+            racecourse,
+            race_no
+        )
+
+        if incident is not None:
+            all_incidents.append(
+                incident
             )
 
         time.sleep(
@@ -319,8 +545,10 @@ def process_date(meeting_date):
 
     if not all_results:
         print(
-            "No results extracted."
+            "No results extracted "
+            "for this meeting."
         )
+
         return
 
     os.makedirs(
@@ -328,7 +556,7 @@ def process_date(meeting_date):
         exist_ok=True
     )
 
-    date_string = meeting_date.strftime(
+    date_filename = meeting_date.strftime(
         "%Y-%m-%d"
     )
 
@@ -339,7 +567,7 @@ def process_date(meeting_date):
 
     results_file = os.path.join(
         OUTPUT_DIR,
-        f"{date_string}_{racecourse}_results.csv"
+        f"{date_filename}_{racecourse}_results.csv"
     )
 
     results_df.to_csv(
@@ -353,52 +581,121 @@ def process_date(meeting_date):
     )
 
     if all_dividends:
+
         dividends_df = pd.concat(
             all_dividends,
             ignore_index=True
         )
 
-        dividend_file = os.path.join(
+        dividends_file = os.path.join(
             OUTPUT_DIR,
-            f"{date_string}_{racecourse}_dividends.csv"
+            f"{date_filename}_{racecourse}_dividends.csv"
         )
 
         dividends_df.to_csv(
-            dividend_file,
+            dividends_file,
             index=False
         )
 
         print(
             "Saved:",
-            dividend_file
+            dividends_file
+        )
+
+    if all_race_info:
+
+        race_info_df = pd.DataFrame(
+            all_race_info
+        )
+
+        race_info_file = os.path.join(
+            OUTPUT_DIR,
+            f"{date_filename}_{racecourse}_race_info.csv"
+        )
+
+        race_info_df.to_csv(
+            race_info_file,
+            index=False
+        )
+
+        print(
+            "Saved:",
+            race_info_file
+        )
+
+    if all_incidents:
+
+        incidents_df = pd.DataFrame(
+            all_incidents
+        )
+
+        incidents_file = os.path.join(
+            OUTPUT_DIR,
+            f"{date_filename}_{racecourse}_incidents.csv"
+        )
+
+        incidents_df.to_csv(
+            incidents_file,
+            index=False
+        )
+
+        print(
+            "Saved:",
+            incidents_file
         )
 
 
 def main():
-    start = datetime.strptime(
-        START_DATE,
-        "%Y-%m-%d"
-    ).date()
 
-    end = datetime.strptime(
-        END_DATE,
-        "%Y-%m-%d"
-    ).date()
+    try:
+        start_date = datetime.strptime(
+            START_DATE,
+            "%Y-%m-%d"
+        ).date()
 
+        end_date = datetime.strptime(
+            END_DATE,
+            "%Y-%m-%d"
+        ).date()
+
+    except ValueError:
+        print(
+            "START_DATE and END_DATE "
+            "must use YYYY-MM-DD format."
+        )
+
+        return
+
+    if start_date > end_date:
+        print(
+            "START_DATE cannot be "
+            "after END_DATE."
+        )
+
+        return
+
+    print()
     print(
-        "HKJC collection range:"
+        "HKJC Historical Results Collector"
     )
 
     print(
-        start,
-        "to",
-        end
+        "From:",
+        start_date
     )
+
+    print(
+        "To:",
+        end_date
+    )
+
+    print()
 
     for meeting_date in date_range(
-        start,
-        end
+        start_date,
+        end_date
     ):
+
         process_date(
             meeting_date
         )
