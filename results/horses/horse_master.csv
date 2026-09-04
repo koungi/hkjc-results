@@ -1,4 +1,5 @@
 horse_id,horse_name,brand_number,country_of_origin,hemisphere_of_origin,horse_age,foaled_date,horse_colour,horse_sex,sire,dam,dam_sire,profile_url,profile_scraped,profile_scraped_at
+HK_1998_T033,ONE STEP AHEAD,BT033,IRE,Northern,,,Bay,Gelding,Mukaddamah,Samriah,Wassl Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_1998_T033,True,2026-09-04T10:52:04Z
 HK_1998_T279,MOMENTUM,BT279,AUS,Southern,,,Grey,Gelding,Kenmare,Lady Jakeo,Last Tycoon Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_1998_T279,True,2026-09-04T10:20:10Z
 HK_1999_V096,SMART HORSE,BV096,USA,Northern,,,Bay,Gelding,Sheikh Albadou,Salon Prive,Private Account Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_1999_V096,True,2026-09-04T10:37:50Z
 HK_1999_V102,RARE COLLECTION,BV102,USA,Northern,,,Chestnut,Gelding,Gilded Time,Neforrest,Green Forest Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_1999_V102,True,2026-09-04T10:25:29Z
@@ -39,6 +40,7 @@ HK_2000_A306,NEW CENTURY,CA306,NZ,Southern,,,Bay,Gelding,Stark South,Gangway,Bee
 HK_2000_A321,SPECIFIC SORCEROR,CA321,IRE,Northern,,,Chestnut,Gelding,Definite Article,Mystic Dispute,Magical Strike Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A321,True,2026-09-04T07:39:43Z
 HK_2000_A338,VICTORY WARRIOR,CA338,AUS,Southern,,,Grey,Gelding,Ignatius,La Spy,Spectacular Spy Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A338,True,2026-09-04T07:16:23Z
 HK_2000_A343,GOLDEN STRIDE,CA343,IRE,Northern,,,Bay,Gelding,Perugino,Trilby's Dream,Mansooj Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A343,True,2026-09-04T07:36:53Z
+HK_2000_A361,LOK WAH TREASURE,CA361,NZ,Southern,,,Bay,Gelding,Kaapstad,Satin Blush,Tawfiq Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A361,True,2026-09-04T10:48:52Z
 HK_2000_A367,KIMBERLEY MINES,CA367,SAF,Southern,,,Bay,Gelding,Western Winter,Welsh Woman,Welsh Saint Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A367,True,2026-09-04T07:08:37Z
 HK_2000_A368,COME SEE YOU,CA368,IRE,Northern,,,Bay,Gelding,Sri Pekan,Landrail,Storm Bird Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A368,True,2026-09-04T10:29:09Z
 HK_2000_A381,CHOICE AND CHANCE,CA381,AUS,Southern,,,Bay,Gelding,Supremo,Daisy Bates,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2000_A381,True,2026-09-04T07:25:37Z
@@ -113,6 +115,7 @@ HK_2001_B291,WINNING SUNSHINE,CB291,AUS,Southern,,,Bay,Gelding,Danehill,Sea Almo
 HK_2001_B293,UNIVERSAL PIONEER,CB293,USA,Northern,,,Bay,Gelding,Quiet American,To Be A Lover,The Minstrel Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B293,True,2026-09-04T07:06:29Z
 HK_2001_B299,SOLAR EMPIRE,CB299,IRE,Northern,,,Bay,Gelding,Grand Lodge,Sweetest Thing,Prince Rupert Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B299,True,2026-09-04T07:07:49Z
 HK_2001_B300,ENGINEERING WONDER,CB300,AUS,Southern,,,Bay,Gelding,Last Tycoon,Orwhina,Vain Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B300,True,2026-09-04T07:26:05Z
+HK_2001_B302,HAPPY WINNING,CB302,AUS,Southern,,,Chestnut,Gelding,Flying Spur,Indexed,Marauding Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B302,True,2026-09-04T10:51:23Z
 HK_2001_B303,GIDDY KIPPER,CB303,GB,Northern,,,Chestnut,Gelding,Polar Falcon,Emaline,Empery Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B303,True,2026-09-04T10:28:21Z
 HK_2001_B305,STRONG SUN,CB305,GB,Northern,,,Bay,Gelding,Polish Precedent,Mill Line,Mill Reef Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B305,True,2026-09-04T10:29:06Z
 HK_2001_B310,SEASONS TREASURE,CB310,AUS,Southern,,,Chestnut,Gelding,Sky Classic,Diamond Coast,Coastal Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B310,True,2026-09-04T07:43:20Z
@@ -144,6 +147,7 @@ HK_2001_B386,TIRAMISU,CB386,GB,Northern,,,Bay,Gelding,Sri Pekan,Pennsylvania,Nor
 HK_2001_B387,ARMONDO,CB387,NZ,Southern,,,Bay,Gelding,Desert Sun,Sivain,Truly Vain Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B387,True,2026-09-04T10:25:48Z
 HK_2001_B388,SHOW BRAVELY,CB388,AUS,Southern,,,Bay,Gelding,Barathea,La Musique,Bellotto Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B388,True,2026-09-04T07:31:27Z
 HK_2001_B389,DASH FOR VICTORIES,CB389,NZ,Southern,,,Chestnut,Gelding,Yachtie,Angie's Attitude,Kingdom Bay Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B389,True,2026-09-04T10:19:30Z
+HK_2001_B390,MAGNIFICENT,CB390,NZ,Southern,,,Bay,Gelding,Centaine,Strone,Long Row Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B390,True,2026-09-04T10:48:58Z
 HK_2001_B391,SUNBELL,CB391,AUS,Southern,,,Brown,Gelding,Clang,Won't Catch Me,Noalcoholic Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B391,True,2026-09-04T07:15:48Z
 HK_2001_B392,SUPER COMBED,CB392,NZ,Southern,,,Bay,Gelding,Faltaat,Flick Alight,New Regent Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B392,True,2026-09-04T10:44:28Z
 HK_2001_B393,HONOUR SUPREME,CB393,NZ,Southern,,,Bay,Gelding,Gold Brose,Chello,Western Symphony Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B393,True,2026-09-04T07:42:40Z
@@ -157,6 +161,7 @@ HK_2001_B426,FIGHTING MASCOT,CB426,AUS,Southern,,,Bay,Gelding,Hurricane Sky,Fact
 HK_2001_B427,SIR OCTAVIUS,CB427,AUS,Southern,,,Bay,Gelding,Octagonal,Show Of Force,Luskin Star Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B427,True,2026-09-04T10:22:23Z
 HK_2001_B432,FORTUNE SMILES,CB432,IRE,Northern,,,Chestnut,Gelding,Hector Protector,Philgwyn,Milford Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B432,True,2026-09-04T10:21:03Z
 HK_2001_B439,SOUTHERN LIGHT,CB439,AUS,Southern,,,Bay,Gelding,Danehill Dancer,Promalza,Alzao Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B439,True,2026-09-04T07:21:13Z
+HK_2001_B441,LUCKY PARADISE,CB441,NZ,Southern,,,Bay,Gelding,Flying Spur,The Essence,Voltage Peak Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B441,True,2026-09-04T10:49:08Z
 HK_2001_B446,SHOGUN,CB446,AUS,Southern,,,Bay,Gelding,Langfuhr,Seersha,Kampala Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B446,True,2026-09-04T10:23:26Z
 HK_2001_B452,DANEHILL WARRIOR,CB452,AUS,Southern,,,Bay,Gelding,Danehill,La Favorita,Seattle Dancer Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B452,True,2026-09-04T07:42:45Z
 HK_2001_B455,KID GALAXY,CB455,NZ,Southern,,,Bay,Gelding,Dehere,Kiwi Magic,Vice Regal Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2001_B455,True,2026-09-04T10:25:04Z
@@ -232,6 +237,7 @@ HK_2002_C188,SHANGHAI KING,CC188,GB,Northern,,,Bay,Gelding,Royal Applause,Withou
 HK_2002_C189,GALLANT KNIGHT,CC189,SAF,Southern,,,Bay,Gelding,Alami,Plastic Lady,Centaine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C189,True,2026-09-04T07:04:42Z
 HK_2002_C193,HEALTHY FRUITS,CC193,IRE,Northern,,,Bay,Gelding,Danehill,Trust In Luck,Nashwan Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C193,True,2026-09-04T07:21:35Z
 HK_2002_C194,SPECTACULAR HIT,CC194,IRE,Northern,,,Bay,Gelding,Marju,Debbie's Next,Arctic Tern Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C194,True,2026-09-04T10:22:31Z
+HK_2002_C195,KING OF FIELD,CC195,AUS,Southern,,,Bay,Gelding,Danehill,Dosthill,Diesis Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C195,True,2026-09-04T10:54:28Z
 HK_2002_C196,EVEREST,CC196,NZ,Southern,,,Grey,Gelding,Unbridled's Song,Gazebo,Snaadee Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C196,True,2026-09-04T10:38:21Z
 HK_2002_C198,SOLAR,CC198,IRE,Northern,,,Bay,Gelding,Exit To Nowhere,Merci,Cadeaux Genereux Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C198,True,2026-09-04T07:35:24Z
 HK_2002_C200,JOYFUL WORLD,CC200,IRE,Northern,,,Bay,Gelding,Royal Applause,Peace In The Park,Ahonoora Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C200,True,2026-09-04T07:32:28Z
@@ -299,6 +305,7 @@ HK_2002_C343,A-TACK,CC343,IRE,Northern,,,Grey,Gelding,Alzao,Thatchabella,Thatchi
 HK_2002_C345,LIBERAL'S CHOICE,CC345,AUS,Southern,,,Bay,Gelding,Danewin,Another Choice,March Legend Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C345,True,2026-09-04T07:19:44Z
 HK_2002_C346,EASY GAME,CC346,NZ,Southern,,,Bay,Gelding,Straight Strike,Lady Newbury,Lord Ballina Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C346,True,2026-09-04T07:24:44Z
 HK_2002_C348,ABLE PRINCE,CC348,AUS,Southern,,,Bay,Gelding,Hurricane Sky,Queen's Choir,Palace Music Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C348,True,2026-09-04T07:33:19Z
+HK_2002_C350,ARIGATO,CC350,AUS,Southern,,,Brown,Gelding,Euclase,Rich Resource,Chanteclair Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C350,True,2026-09-04T10:53:41Z
 HK_2002_C351,NEW MILESTONE,CC351,AUS,Southern,,,Bay,Gelding,Flying Spur,Ballroom Babe,Citidancer Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C351,True,2026-09-04T07:28:40Z
 HK_2002_C352,SHANGHAI DELIGHT,CC352,NZ,Southern,,,Chestnut,Gelding,Gold Brose,Edina,Alzao Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C352,True,2026-09-04T07:36:01Z
 HK_2002_C355,NOBLE HEART,CC355,NZ,Southern,,,Chestnut,Gelding,Deputy Governor,Domino,Grosvenor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2002_C355,True,2026-09-04T07:24:28Z
@@ -416,6 +423,7 @@ HK_2003_D175,NOBLE WIND,CD175,NZ,Southern,,,Bay,Gelding,Desert King,Miss Rory,Ro
 HK_2003_D177,FASHION JEWELLERY,CD177,NZ,Southern,,,Bay,Gelding,Entrepreneur,All Night Party,Just A Dancer Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D177,True,2026-09-04T10:18:32Z
 HK_2003_D178,LUCKY CHAMPION,CD178,AUS,Southern,,,Chestnut,Gelding,Flying Spur,Newgirlintown,Seeking The Gold Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D178,True,2026-09-04T07:30:20Z
 HK_2003_D179,BRILLIANT WIN,CD179,AUS,Southern,,,Chestnut,Gelding,Gold Fever,Ceremonious,Estaminet Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D179,True,2026-09-04T10:29:53Z
+HK_2003_D182,PAY-DAY,CD182,NZ,Southern,,,Chestnut,Gelding,Kashani,Regal Rita,Ron's Victory Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D182,True,2026-09-04T10:49:58Z
 HK_2003_D183,RAINBOW DIAMOND,CD183,NZ,Southern,,,Chestnut,Gelding,Mellifont,Orange Lace,Al Hareb Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D183,True,2026-09-04T10:31:54Z
 HK_2003_D184,MR GENKI,CD184,NZ,Southern,,,Bay,Gelding,Pompeii Court,Brauner Miss,Brauner Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D184,True,2026-09-04T10:28:18Z
 HK_2003_D185,TAIJI SPIRIT,CD185,NZ,Southern,,,Bay,Gelding,Soviet Star,Thelma's Decision,Noble Bijou Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D185,True,2026-09-04T10:33:43Z
@@ -439,6 +447,7 @@ HK_2003_D211,MOVE IT,CD211,GB,Northern,,,Chestnut,Gelding,Cadeaux Genereux,Midni
 HK_2003_D212,SPECIAL KING PRAWN,CD212,IRE,Northern,,,Bay,Gelding,Danetime,Ceannanas,Magical Wonder Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D212,True,2026-09-04T07:20:23Z
 HK_2003_D213,WHATABOB,CD213,IRE,Northern,,,Bay,Gelding,Indian Ridge,Ma N'Ieme Biche,Key To The Kingdom Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D213,True,2026-09-04T07:30:25Z
 HK_2003_D216,GIANFANTI,CD216,IRE,Northern,,,Bay,Horse,Danehill,That'll Be The Day,Thatching Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D216,True,2026-09-04T10:28:03Z
+HK_2003_D220,CASH BABY,CD220,NZ,Southern,,,Bay,Gelding,Stark South,Letty,Touching Wood Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D220,True,2026-09-04T10:49:46Z
 HK_2003_D225,GREEN TREASURE,CD225,AUS,Southern,,,Bay,Gelding,Danehill,Sitella,Shirley Heights Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D225,True,2026-09-04T10:32:12Z
 HK_2003_D226,TRAVEL LEADER,CD226,NZ,Southern,,,Chestnut,Gelding,Danske,Platinum Blond,Kaapstad Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D226,True,2026-09-04T07:39:40Z
 HK_2003_D228,GLOBE RIVER,CD228,NZ,Southern,,,Bay,Gelding,Al Akbar,Lady Jane,Markella Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D228,True,2026-09-04T07:05:23Z
@@ -454,6 +463,7 @@ HK_2003_D240,DEVON FLAIR,CD240,SAF,Southern,,,Bay,Gelding,Al Mufti,Jaamanique,Gr
 HK_2003_D242,JOY TRUMPS,CD242,USA,Northern,,,Bay,Gelding,Honor Grades,Heated Debate,Woodman Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D242,True,2026-09-04T10:37:27Z
 HK_2003_D243,PERSEVERANCE,CD243,AUS,Southern,,,Bay,Gelding,Langfuhr,Lady Marita,Lord Dudley Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D243,True,2026-09-04T10:23:04Z
 HK_2003_D244,DRAGON AND GOLD,CD244,AUS,Southern,,,Bay,Brown / Gelding,Last Tycoon,Grey Sneakers,Spectacular Spy Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D244,True,2026-09-04T07:03:54Z
+HK_2003_D245,FRIENDS FOREVER,CD245,IRE,Northern,,,Bay,Gelding,Desert Style,Silver Slipper,Indian Ridge Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D245,True,2026-09-04T10:48:55Z
 HK_2003_D246,YELLOW DIAMOND,CD246,AUS,Southern,,,Bay,Gelding,Commands,Coureuse,Tierce Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D246,True,2026-09-04T07:26:21Z
 HK_2003_D248,HAPPY ALL AROUND,CD248,NZ,Southern,,,Bay,Gelding,Danasinga,Imposing Choice,Imposing Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D248,True,2026-09-04T07:24:11Z
 HK_2003_D249,PURPLE GOLD,CD249,USA,Northern,,,Grey,Gelding,Devil's Bag,Krasivi,Nijinsky II Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D249,True,2026-09-04T07:36:15Z
@@ -550,6 +560,7 @@ HK_2003_D397,LOTZATOW,CD397,NZ,Southern,,,Bay,Gelding,Towkay,Maretto,Marceau Sam
 HK_2003_D400,ACCELERATION,CD400,NZ,Southern,,,Grey,Gelding,Marju,Better Believe,Success Express Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D400,True,2026-09-04T07:11:15Z
 HK_2003_D402,PIONERO,CD402,AUS,Southern,,,Bay,Gelding,Danehill,Techniques,Palace Music Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D402,True,2026-09-04T07:09:54Z
 HK_2003_D405,LIGHTNING STAR,CD405,AUS,Southern,,,Chestnut,Gelding,Grand Lodge,Emergency,Marauding Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D405,True,2026-09-04T10:28:52Z
+HK_2003_D633,CROWN'S GIFT,CD633,AUS,Southern,,,Brown,Gelding,Just Awesome,Lots Of Style,Coalcliff Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2003_D633,True,2026-09-04T10:54:47Z
 HK_2004_E001,GREENESSY,CE001,AUS,Southern,,,Chestnut,Gelding,Hennessy,Romantic River,Irish River Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E001,True,2026-09-04T07:22:42Z
 HK_2004_E002,EGYPTIAN RA,CE002,NZ,Southern,,,Chestnut,Gelding,Woodborough,Egyptian Queen,Karioi Lad Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E002,True,2026-09-04T10:46:41Z
 HK_2004_E003,DR HAENSLER,CE003,AUS,Southern,,,Brown,Gelding,Anabaa,Seersha,Kampala Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E003,True,2026-09-04T07:03:11Z
@@ -727,7 +738,9 @@ HK_2004_E207,VIKING TOR,CE207,AUS,Southern,,,Bay,Gelding,Danehill,Strawberry Gir
 HK_2004_E208,SANZIRO,CE208,AUS,Southern,,,Bay,Gelding,Danzero,Will Fly,Will Dancer Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E208,True,2026-09-04T07:20:06Z
 HK_2004_E209,CRYSTAL,CE209,AUS,Southern,,,Bay,Gelding,Desert Sun,Cloudway,Buena Shore Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E209,True,2026-09-04T07:35:07Z
 HK_2004_E210,HELLO PRETTY,CE210,AUS,Southern,,,Chestnut,Gelding,Distorted Humor,Blazing Aura,Blazing Sword Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E210,True,2026-09-04T07:22:28Z
+HK_2004_E211,BRAINS TRUST,CE211,AUS,Southern,,,Bay,Gelding,Last Tycoon,Fappiano's Girl,Mustin Lake Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E211,True,2026-09-04T10:55:00Z
 HK_2004_E212,ONE SHOT,CE212,AUS,Southern,,,Bay,Gelding,Lion Hunter,Just A Tick,Semipalatinsk Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E212,True,2026-09-04T10:40:12Z
+HK_2004_E213,SHANGHAI LAD,CE213,AUS,Southern,,,Grey,Gelding,Quest For Fame,Crew,Sanction Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E213,True,2026-09-04T10:52:57Z
 HK_2004_E214,FILEBO,CE214,NZ,Southern,,,Bay,Gelding,Cape Cross,Olga's Pal,Straight Strike Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E214,True,2026-09-04T10:17:07Z
 HK_2004_E217,ALL OUR WAY,CE217,AUS,Southern,,,Bay,Rig,Desert Prince,Tiara,Star Way Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E217,True,2026-09-04T07:36:23Z
 HK_2004_E218,ESPOIR D'OR,CE218,AUS,Southern,,,Bay,Gelding,Flying Spur,Alicia,Darshaan Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E218,True,2026-09-04T07:31:35Z
@@ -740,6 +753,7 @@ HK_2004_E224,FLAG FINDER,CE224,AUS,Southern,,,Chestnut,Gelding,Snippets,Platonic
 HK_2004_E225,SUPER SPECIAL,CE225,AUS,Southern,,,Bay,Gelding,Stravinsky,Grosvenor Gardens,Grosvenor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E225,True,2026-09-04T10:27:23Z
 HK_2004_E226,SILVER MARK,CE226,AUS,Southern,,,Bay,Brown / Gelding,Way Of Light,Cate's Mill,Water Mill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E226,True,2026-09-04T07:37:09Z
 HK_2004_E227,NATURAL BLITZ,CE227,AUS,Southern,,,Brown,Gelding,Maroof,Miiharo,Bletchingly Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E227,True,2026-09-04T07:33:24Z
+HK_2004_E228,DANACOURT,CE228,NZ,Southern,,,Chestnut,Gelding,Danasinga,Frizzle,Pompeii Court Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E228,True,2026-09-04T10:54:35Z
 HK_2004_E229,REGENCY HORSE,CE229,NZ,Southern,,,Bay,Gelding,Stravinsky,Rivertaine,Centaine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E229,True,2026-09-04T07:33:47Z
 HK_2004_E230,HAPPEE OWNER,CE230,NZ,Southern,,,Bay,Gelding,Towkay,Make Up,Take Your Partner Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E230,True,2026-09-04T07:13:23Z
 HK_2004_E231,THISTLE KING,CE231,NZ,Southern,,,Bay,Gelding,Anziyan,Miss Petite,Bassenthwaite Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E231,True,2026-09-04T07:15:28Z
@@ -805,6 +819,7 @@ HK_2004_E299,SURE JOY,CE299,AUS,Southern,,,Brown,Gelding,Rustic Amber,Bare Offer
 HK_2004_E300,LUMINOUS,CE300,NZ,Southern,,,Chestnut,Gelding,Spinning World,Gold Cloud,Truly Vain Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E300,True,2026-09-04T07:35:13Z
 HK_2004_E301,REAL SURPRISE,CE301,AUS,Southern,,,Bay,Gelding,Flying Spur,Joy,Bluebird Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E301,True,2026-09-04T10:22:56Z
 HK_2004_E302,VISIONNAIRE,CE302,NZ,Southern,,,Brown,Gelding,Kingdom Bay,Random Quest,Random Chance Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E302,True,2026-09-04T07:07:32Z
+HK_2004_E303,FINANCIAL KID,CE303,NZ,Southern,,,Bay,Gelding,O'Reilly,Snow Lass,Zamazaan Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E303,True,2026-09-04T10:52:16Z
 HK_2004_E304,SMART VIETKONG,CE304,AUS,Southern,,,Chestnut,Gelding,Flying Spur,Gem's Box,Kaapstad Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E304,True,2026-09-04T10:29:39Z
 HK_2004_E305,KAISER'S CHOIX,CE305,NZ,Southern,,,Bay,Gelding,Kashani,Asalingi,Clay Hero Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E305,True,2026-09-04T07:04:12Z
 HK_2004_E306,G-ONE LEADING,CE306,NZ,Southern,,,Chestnut,Gelding,Spinning World,Meralini,Roughcast Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E306,True,2026-09-04T07:06:52Z
@@ -814,6 +829,7 @@ HK_2004_E310,HAPPY GO LAGO,CE310,AUS,Southern,,,Bay,Gelding,Encosta de Lago,Joll
 HK_2004_E311,BLISS STAR,CE311,AUS,Southern,,,Chestnut,Gelding,Flying Spur,Queen Of The Park,Diesis Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E311,True,2026-09-04T10:31:27Z
 HK_2004_E312,WINNING SUCCESS,CE312,AUS,Southern,,,Chestnut,Gelding,Secret Savings,Courteous,Affirmed Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E312,True,2026-09-04T07:28:20Z
 HK_2004_E313,CONESTOGA,CE313,NZ,Southern,,,Bay,Gelding,Stravinsky,Centuria,Centaine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E313,True,2026-09-04T07:19:04Z
+HK_2004_E315,TELECOM PRINCESS,CE315,AUS,Southern,,,Bay,Mare,Danewin,Nipigon,Noalcoholic Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E315,True,2026-09-04T10:51:16Z
 HK_2004_E316,MAKE YOU JEALOUS,CE316,AUS,Southern,,,Brown,Gelding,Langfuhr,Lady Of The Manor,Kenmare Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E316,True,2026-09-04T07:27:08Z
 HK_2004_E317,STRONG GAIN,CE317,AUS,Southern,,,Brown,Gelding,Testa Rossa,Myrrh,Nassipour Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E317,True,2026-09-04T07:25:56Z
 HK_2004_E319,BULLISH STAR,CE319,GB,Northern,,,Bay,Gelding,Cadeaux Genereux,Ruby Affair,Night Shift Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2004_E319,True,2026-09-04T10:18:40Z
@@ -866,6 +882,7 @@ HK_2005_G031,SMART FELLOW,CG031,AUS,Southern,,,Chestnut,Gelding,Volcanic Prince,
 HK_2005_G032,CHINA SPORTFIELD,CG032,ARG,Southern,,,Brown,Gelding,West By West,Flying Martha,Flying Paster Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G032,True,2026-09-04T07:22:03Z
 HK_2005_G033,WALKONTHEWILDSIDE,CG033,GB,Northern,,,Bay,Gelding,Giant's Causeway,Wannabe Grand,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G033,True,2026-09-04T07:25:25Z
 HK_2005_G034,SPACED,CG034,IRE,Northern,,,Bay,Gelding,Indian Rocket,Tolomena,Tolomeo Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G034,True,2026-09-04T07:32:57Z
+HK_2005_G035,WINDICATOR,CG035,IRE,Northern,,,Bay,Gelding,Monashee Mountain,Zoya,Thatching Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G035,True,2026-09-04T10:50:10Z
 HK_2005_G036,ZAVONE,CG036,IRE,Northern,,,Brown,Gelding,Zafonic,Irish Teen,Irish River Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G036,True,2026-09-04T07:18:41Z
 HK_2005_G037,FINGERS CROSSED,CG037,IRE,Northern,,,Bay,Gelding,Desert Story,Daylight Ahead,Tenby Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G037,True,2026-09-04T07:21:58Z
 HK_2005_G040,KING'S CHOICE,CG040,IRE,Northern,,,Bay,Gelding,Titus Livius,Exciting,Mill Reef Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G040,True,2026-09-04T07:16:29Z
@@ -893,6 +910,7 @@ HK_2005_G064,HAWKES BAY,CG064,GB,Northern,,,Bay,Gelding,Vettori,Nordico Princess
 HK_2005_G065,BLOOM BLOOM,CG065,IRE,Northern,,,Bay,Gelding,Sadler's Wells,Zummerudd,Habitat Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G065,True,2026-09-04T10:39:40Z
 HK_2005_G066,CAPE PRINCE,CG066,NZ,Southern,,,Bay,Gelding,Cape Cross,Amber Ace,Kreisler Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G066,True,2026-09-04T10:30:28Z
 HK_2005_G067,SUPER BONUS,CG067,NZ,Southern,,,Bay,Gelding,Align,Super Reason,Sound Reason Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G067,True,2026-09-04T07:11:28Z
+HK_2005_G068,TATTENHALL DELIGHT,CG068,NZ,Southern,,,Bay,Gelding,Green Perfume,Regal Servant,Vice Regal Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G068,True,2026-09-04T10:49:53Z
 HK_2005_G069,FABULOUS TREASURE,CG069,NZ,Southern,,,Bay,Gelding,Kashani,Sunquest,Sun And Shine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G069,True,2026-09-04T10:40:57Z
 HK_2005_G072,WHIPLASH,CG072,NZ,Southern,,,Bay,Gelding,O'Reilly,Soleil Vite,Desert Sun Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G072,True,2026-09-04T07:07:18Z
 HK_2005_G073,PALIO KING,CG073,NZ,Southern,,,Chestnut,Gelding,Our Maizcay,Perky Lass,Kyoei Dapper Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G073,True,2026-09-04T07:36:44Z
@@ -904,16 +922,19 @@ HK_2005_G078,I'M NO SQUARE,CG078,AUS,Southern,,,Bay,Brown / Gelding,Octagonal,Be
 HK_2005_G079,RICH DRAGON,CG079,AUS,Southern,,,Bay,Brown / Gelding,Quest For Fame,Lorelei,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G079,True,2026-09-04T10:30:21Z
 HK_2005_G080,SIKANDER,CG080,AUS,Southern,,,Bay,Gelding,Quest For Fame,Spirit,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G080,True,2026-09-04T10:28:05Z
 HK_2005_G081,TACTIC KING,CG081,NZ,Southern,,,Bay,Gelding,Zabeel,Afleet Floozie,Afleet Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G081,True,2026-09-04T07:13:53Z
+HK_2005_G082,SUN AWESOME,CG082,AUS,Southern,,,Bay,Gelding,Armidale,Miette,Snippets Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G082,True,2026-09-04T10:51:08Z
 HK_2005_G085,OBVIOUSLY,CG085,AUS,Southern,,,Bay,Gelding,Danzero,Jade Court,Bletchingly Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G085,True,2026-09-04T07:21:44Z
 HK_2005_G086,ALWAYS GIGGLE,CG086,AUS,Southern,,,Bay,Gelding,Happy Giggle,Not Always,Al Awir Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G086,True,2026-09-04T07:15:00Z
 HK_2005_G087,NATURAL NINE,CG087,AUS,Southern,,,Bay,Gelding,Mark Of Esteem,Mythical Play,Defensive Play Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G087,True,2026-09-04T07:12:26Z
 HK_2005_G088,LIVERPOOLTHEGREAT,CG088,AUS,Southern,,,Chestnut,Gelding,Over,Chaparra,Canny Lad Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G088,True,2026-09-04T10:44:19Z
 HK_2005_G089,SUPREME CLASS,CG089,AUS,Southern,,,Bay,Horse,Redoute's Choice,Lanadee,Snaadee Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G089,True,2026-09-04T07:40:03Z
+HK_2005_G090,CONTINUOUS FORTUNE,CG090,AUS,Southern,,,Brown,Gelding,Way Of Light,Happy Honeymoon,Elounda Bay Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G090,True,2026-09-04T10:51:13Z
 HK_2005_G094,VINTAGE GOLD,CG094,IRE,Northern,,,Chestnut,Gelding,Ashkalani,Lycia,Targowice Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G094,True,2026-09-04T10:28:37Z
 HK_2005_G095,EASY,CG095,IRE,Northern,,,Chestnut,Gelding,City On A Hill,Christan,Al Hareb Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G095,True,2026-09-04T07:39:21Z
 HK_2005_G096,VIVA PATACA,CG096,GB,Northern,,,Bay,Brown / Gelding,Marju,Comic,Be My Chief Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G096,True,2026-09-04T07:22:31Z
 HK_2005_G097,MODESTY,CG097,IRE,Northern,,,Bay,Brown / Colt,Danehill,La Pitie,Devil's Bag Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G097,True,2026-09-04T10:39:00Z
 HK_2005_G099,DARE TO WIN,CG099,IRE,Northern,,,Chestnut,Gelding,Fayruz,Notluckytochange,King Of Clubs Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G099,True,2026-09-04T07:36:20Z
+HK_2005_G101,GIANNI,CG101,SAF,Southern,,,Chestnut,Gelding,Rich Man's Gold,Doradella,Elliodor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G101,True,2026-09-04T10:52:45Z
 HK_2005_G102,SECRET OF KINGS,CG102,AUS,Southern,,,Bay,Gelding,King Of Kings,Secret,Marscay Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G102,True,2026-09-04T07:41:25Z
 HK_2005_G103,ELEGANT JEWELLERY,CG103,NZ,Southern,,,Bay,Gelding,Stravinsky,Rose World,Grosvenor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G103,True,2026-09-04T10:35:51Z
 HK_2005_G104,FLY ME TO THE MOON,CG104,NZ,Southern,,,Bay,Gelding,Fly To The Stars,Village Dancer,Mistral Dancer Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G104,True,2026-09-04T10:37:16Z
@@ -921,6 +942,7 @@ HK_2005_G105,NEW TRIUMPH,CG105,NZ,Southern,,,Bay,Gelding,Pins,Funny Features,Arc
 HK_2005_G106,HAPPY ASH,CG106,NZ,Southern,,,Brown,Gelding,Quorum,Belle Danceuse,Tights Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G106,True,2026-09-04T07:06:32Z
 HK_2005_G108,ABLE ONE,CG108,NZ,Southern,,,Bay,Gelding,Cape Cross,Gardenia,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G108,True,2026-09-04T10:33:33Z
 HK_2005_G109,GLOBAL WIN,CG109,AUS,Southern,,,Bay,Gelding,Redoute's Choice,Hit And Giggle,Marauding Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G109,True,2026-09-04T07:30:10Z
+HK_2005_G110,SO NICE,CG110,NZ,Southern,,,Bay,Gelding,Cape Cross,She's Possessed,Deputy Governor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G110,True,2026-09-04T10:52:52Z
 HK_2005_G111,INSPIRATION,CG111,AUS,Southern,,,Chestnut,Gelding,Flying Spur,La Bamba,Last Tycoon Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G111,True,2026-09-04T07:08:15Z
 HK_2005_G115,MONEY MAN,CG115,AUS,Southern,,,Bay,Gelding,Redoute's Choice,What A Joy,Bluebird Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G115,True,2026-09-04T07:24:52Z
 HK_2005_G116,PLEZAYRE,CG116,AUS,Southern,,,Bay,Gelding,Snippets,Lezayre,Keltrice Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G116,True,2026-09-04T07:18:35Z
@@ -946,6 +968,7 @@ HK_2005_G136,FLORAL FOKANZA,CG136,AUS,Southern,,,Bay,Colt,Danehill,New Acquainta
 HK_2005_G137,MULTI-WIN SPIRIT,CG137,NZ,Southern,,,Chestnut,Gelding,Exploding Prospect,Du Marquis,Gaius Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G137,True,2026-09-04T07:12:53Z
 HK_2005_G138,CASH IN,CG138,NZ,Southern,,,Bay,Gelding,Fasliyev,Najaba,Touching Wood Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G138,True,2026-09-04T07:06:00Z
 HK_2005_G139,DANZIGMOUNTAIN,CG139,NZ,Southern,,,Bay,Gelding,Chief Bearhart,Courtalista,Pompeii Court Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G139,True,2026-09-04T07:27:30Z
+HK_2005_G141,DOUBLE FANTASY,CG141,NZ,Southern,,,Bay,Gelding,Cullen,Awave,Crested Wave Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G141,True,2026-09-04T10:52:50Z
 HK_2005_G142,BAJAN BELL,CG142,NZ,Southern,,,Bay,Gelding,Deputy Governor,Culture Shock,Centaine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G142,True,2026-09-04T07:22:15Z
 HK_2005_G143,JOYFUL YEARS,CG143,AUS,Southern,,,Brown,Gelding,El Moxie,Private Gem,Pirate Army Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G143,True,2026-09-04T07:27:27Z
 HK_2005_G144,GRABBIT,CG144,AUS,Southern,,,Bay,Gelding,Woodman,Sybeel,Zabeel Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G144,True,2026-09-04T07:24:02Z
@@ -966,12 +989,14 @@ HK_2005_G161,SAFETY FIRST,CG161,NZ,Southern,,,Bay,Gelding,Danasinga,Khairleigh,K
 HK_2005_G162,NOBLE RAIDER,CG162,IRE,Northern,,,Bay,Gelding,Desert Style,Pyatshaw,Common Grounds Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G162,True,2026-09-04T07:33:11Z
 HK_2005_G163,AMAZING CHOICE,CG163,NZ,Southern,,,Brown,Gelding,Fantastic Light,Rubitoff,Rubiton Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G163,True,2026-09-04T07:12:12Z
 HK_2005_G164,FLAMING SUN,CG164,AUS,Southern,,,Bay,Gelding,Encosta de Lago,Abyss,Royal Academy Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G164,True,2026-09-04T07:31:03Z
+HK_2005_G165,CENTENNIAL SMILE,CG165,IRE,Northern,,,Bay,Gelding,Marju,Ela Cassini,Ela-Mana-Mou Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G165,True,2026-09-04T10:54:16Z
 HK_2005_G166,EXPRESS MAIL,CG166,AUS,Southern,,,Chestnut,Gelding,Desert King,Queen's Choir,Palace Music Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G166,True,2026-09-04T10:45:37Z
 HK_2005_G167,STEP TO WIN,CG167,NZ,Southern,,,Bay,Gelding,Stravinsky,Repetition,Kingdom Bay Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G167,True,2026-09-04T07:09:21Z
 HK_2005_G169,NOBLE CONQUEROR,CG169,AUS,Southern,,,Bay,Gelding,Danehill,Target Figure,Diesis Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G169,True,2026-09-04T07:18:58Z
 HK_2005_G170,FIRST BABY,CG170,AUS,Southern,,,Bay,Gelding,Montjeu,Fleur de Chine,Centaine Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G170,True,2026-09-04T07:04:06Z
 HK_2005_G171,BAAZIGAR,CG171,AUS,Southern,,,Chestnut,Gelding,Encosta de Lago,True Believer,Is It True Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G171,True,2026-09-04T10:39:05Z
 HK_2005_G172,NORTHERN HERO,CG172,AUS,Southern,,,Bay,Gelding,Anabaa,Novinka,Canny Lad Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G172,True,2026-09-04T10:39:02Z
+HK_2005_G173,STILTON,CG173,NZ,Southern,,,Bay,Gelding,Cape Cross,Samantha Rush,Bakharoff Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G173,True,2026-09-04T10:48:43Z
 HK_2005_G174,FOREVER RICHES,CG174,AUS,Southern,,,Bay,Gelding,Redoute's Choice,Sweep The Seas,Sea Road Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G174,True,2026-09-04T07:09:42Z
 HK_2005_G175,MULTIMIGHTY,CG175,NZ,Southern,,,Bay,Colt,Danehill,Tamarino,Caerleon Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G175,True,2026-09-04T07:32:36Z
 HK_2005_G176,NAMJONG MONEY,CG176,USA,Northern,,,Bay,Gelding,Bahri,Secret Advice,Secreto Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G176,True,2026-09-04T07:24:20Z
@@ -981,10 +1006,14 @@ HK_2005_G181,NAMJONG SMILE,CG181,IRE,Northern,,,Grey,Gelding,Cape Cross,Espana,H
 HK_2005_G182,TOP TOP LIGHT,CG182,AUS,Southern,,,Bay,Gelding,Snippets,Timeless Winds,Mister C Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G182,True,2026-09-04T07:32:11Z
 HK_2005_G183,SOHNA,CG183,NZ,Southern,,,Chestnut,Gelding,Canny Lad,Zinarush,Carnegie Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G183,True,2026-09-04T07:11:39Z
 HK_2005_G184,DEMINER,CG184,AUS,Southern,,,Bay,Gelding,Anabaa,True Blonde,Naturalism Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G184,True,2026-09-04T07:21:27Z
+HK_2005_G185,POWERKIE,CG185,AUS,Southern,,,Bay,Gelding,Dehere,Balmaria,Balmerino Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G185,True,2026-09-04T10:51:05Z
 HK_2005_G187,FANTUZZI,CG187,IRE,Northern,,,Bay,Gelding,Barathea,Eman's Joy,Lion Cavern Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G187,True,2026-09-04T07:40:32Z
 HK_2005_G188,INDUSTRIAL MARVEL,CG188,IRE,Northern,,,Bay,Gelding,Key Of Luck,Magic Garter,Precocious Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G188,True,2026-09-04T07:37:42Z
+HK_2005_G189,ALWAYS GREEN,CG189,GB,Northern,,,Bay,Gelding,Mind Games,Expectation,Night Shift Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G189,True,2026-09-04T10:55:02Z
+HK_2005_G192,ROYAL DELIGHT,CG192,AUS,Southern,,,Brown,Gelding,Commands,Conquered,Star Watch Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G192,True,2026-09-04T10:49:06Z
 HK_2005_G193,GENERAL SPEEDEE,CG193,AUS,Southern,,,Chestnut,Gelding,General Nediym,Newton Hills,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G193,True,2026-09-04T07:42:37Z
 HK_2005_G194,RIVER JORDAN,CG194,AUS,Southern,,,Brown,Horse,Irgun,Badiya,Sir Ivor Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G194,True,2026-09-04T07:25:22Z
+HK_2005_G195,SYDNEY OWNER,CG195,AUS,Southern,,,Brown,Filly,Octagonal,Shand,Quest For Fame Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G195,True,2026-09-04T10:53:55Z
 HK_2005_G196,LE ROSSIGNOL,CG196,NZ,Southern,,,Chestnut,Gelding,Stravinsky,Sarah's Melody,Bluebird Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G196,True,2026-09-04T07:40:59Z
 HK_2005_G198,CHEEKY LAD,CG198,AUS,Southern,,,Brown,Gelding,Dehere,Awe Inspiring,Jetball Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G198,True,2026-09-04T07:38:59Z
 HK_2005_G200,SILENT DRAGON,CG200,NZ,Southern,,,Bay,Gelding,Faltaat,Peace Of Mind,Wild Rampage Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G200,True,2026-09-04T07:42:35Z
@@ -993,6 +1022,7 @@ HK_2005_G203,SUNNY POWER,CG203,AUS,Southern,,,Bay,Gelding,Honour And Glory,Zebra
 HK_2005_G207,LUCKY BABY,CG207,AUS,Southern,,,Bay,Gelding,Rocket To Mars,Settlement,Lunchtime Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G207,True,2026-09-04T07:33:55Z
 HK_2005_G208,AMAZING WIN,CG208,AUS,Southern,,,Bay,Gelding,Royal Academy,Ranghiroah,Woodman Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G208,True,2026-09-04T07:09:09Z
 HK_2005_G210,AWESOME DRAGON,CG210,IRE,Northern,,,Brown,Gelding,Imperial Ballet,Lyphards Goddess,Lyphard's Special Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G210,True,2026-09-04T07:07:35Z
+HK_2005_G211,CLASSABOVE,CG211,IRE,Northern,,,Chestnut,Gelding,Peintre Celebre,Oriane,Nashwan Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G211,True,2026-09-04T10:52:37Z
 HK_2005_G212,BRILLIANT ONE,CG212,SAF,Southern,,,Bay,Gelding,Goldkeeper,Fancy Halo,Rakeen Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G212,True,2026-09-04T07:10:31Z
 HK_2005_G213,VALUE CHOICE,CG213,SAF,Southern,,,Chestnut,Gelding,Jet Master,Kal Sufi,Al Mufti Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G213,True,2026-09-04T07:04:26Z
 HK_2005_G214,OURAJA,CG214,AUS,Southern,,,Bay,Gelding,Devaraja,Our Tatrouchka,Defensive Play Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G214,True,2026-09-04T07:43:01Z
@@ -1002,6 +1032,7 @@ HK_2005_G219,CARRY GOOD NEWS,CG219,NZ,Southern,,,Chestnut,Gelding,Prized,Mi Gaze
 HK_2005_G220,SUPER GOAL MASTER,CG220,AUS,Southern,,,Bay,Gelding,Spinning World,Tivoli Gardens,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G220,True,2026-09-04T07:22:01Z
 HK_2005_G221,HONG KONG LAD,CG221,AUS,Southern,,,Brown,Gelding,Redoute's Choice,Chilkat,Miswaki Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G221,True,2026-09-04T07:36:59Z
 HK_2005_G222,VITAL KING,CG222,NZ,Southern,,,Bay,Gelding,Almutawakel,Wauwinet,Bassenthwaite Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G222,True,2026-09-04T07:19:56Z
+HK_2005_G224,JOYFUL LIFE,CG224,NZ,Southern,,,Brown,Gelding,Cape Cross,Joyfulness,Bletchingly Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G224,True,2026-09-04T10:51:40Z
 HK_2005_G225,FANTASTIC SUN,CG225,NZ,Southern,,,Bay,Gelding,Exploding Prospect,True Sensation,Truly Vain Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G225,True,2026-09-04T07:29:16Z
 HK_2005_G226,PRIMIATA,CG226,NZ,Southern,,,Bay,Gelding,Montjeu,Kailey Princess,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G226,True,2026-09-04T07:06:12Z
 HK_2005_G227,TRIUMPHANT DIAMOND,CG227,NZ,Southern,,,Bay,Gelding,Centaine,Ransom Bay,Red Ransom Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G227,True,2026-09-04T07:22:56Z
@@ -1053,6 +1084,16 @@ HK_2005_G317,NATIVE KID,CG317,AUS,Southern,,,Bay,Gelding,Success Express,Sister 
 HK_2005_G318,MASTER POWER,CG318,AUS,Southern,,,Bay,Gelding,Testa Rossa,Efficiency,Archregent Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G318,True,2026-09-04T07:34:04Z
 HK_2005_G319,THE ONE,CG319,AUS,Southern,,,Brown,Gelding,Beautiful Crown,Recitals,Bureaucracy Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G319,True,2026-09-04T07:38:48Z
 HK_2005_G323,LIGHT OF JOY,CG323,FR,Northern,,,Bay,Colt,Mark Of Esteem,Silence,Alzao Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G323,True,2026-09-04T07:34:25Z
+HK_2005_G614,NORSE DANCER,CG614,IRE,Northern,,,Bay,Horse,Halling,River Patrol,Rousillon Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G614,True,2026-09-04T10:53:16Z
+HK_2005_G615,OUIJA BOARD,CG615,GB,Northern,,,Bay,Mare,Cape Cross,Selection Board,Welsh Pageant Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G615,True,2026-09-04T10:53:07Z
+HK_2005_G624,WARCAT,CG624,NZ,Southern,,,Brown,Gelding,Felix The Cat,Tara's Joy,War Hawk II Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G624,True,2026-09-04T10:54:44Z
+HK_2005_G627,FALSTAFF,CG627,IRE,Northern,,,Bay,Colt,Montjeu,Dance Of Love,Pursuit Of Love Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G627,True,2026-09-04T10:53:10Z
+HK_2005_G628,LAVEROCK,CG628,IRE,Northern,,,Bay,Colt,Octagonal,Sky Song,Sadler's Wells Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G628,True,2026-09-04T10:53:13Z
+HK_2005_G629,REDWOOD FALLS,CG629,AUS,Southern,,,Chestnut,Horse,Woodman,Only A Lady,Sir Tristram Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G629,True,2026-09-04T10:54:52Z
+HK_2005_G630,IRRIDESCENCE,CG630,SAF,Southern,,,Bay,Filly,Caesour,Meretricious,Dancing Champ Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G630,True,2026-09-04T10:53:05Z
+HK_2005_G631,GEM OF UNIONLUCKY,CG631,NZ,Southern,,,Chestnut,Gelding,Tale Of The Cat,Pina Colada,Dahar Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G631,True,2026-09-04T10:54:49Z
+HK_2005_G632,NITTAN'S WINNER,CG632,AUS,Southern,,,Bay,Gelding,Distorted Humor,On Centre Court,Century Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G632,True,2026-09-04T10:54:41Z
+HK_2005_G633,ST MORITZ,CG633,AUS,Southern,,,Chestnut,Gelding,Grand Lodge,Masked Goddess,Marscay Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2005_G633,True,2026-09-04T10:54:38Z
 HK_2006_H003,HOLIGAN,CH003,AUS,Southern,,,Brown,Gelding,Umatilla,Sandbagger,Danehill Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2006_H003,True,2026-09-04T07:41:11Z
 HK_2006_H006,LOLLIPOP,CH006,NZ,Southern,,,Chestnut,Gelding,Align,Snadame,Snaadee Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2006_H006,True,2026-09-04T07:21:15Z
 HK_2006_H008,PURE ALPHA,CH008,NZ,Southern,,,Bay,Gelding,Bahhare,Du Valle,Kreisler Same,https://racing.hkjc.com/en-us/local/information/otherhorse?horseid=HK_2006_H008,True,2026-09-04T07:39:59Z
