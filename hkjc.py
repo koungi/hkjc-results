@@ -62,11 +62,9 @@ HORSE_COLUMNS = [
     "horse_name",
     "brand_number",
     "country_of_origin",
+    "horse_age",
     "horse_colour",
     "horse_sex",
-    "import_type",
-    "import_date",
-    "owner",
     "sire",
     "dam",
     "dam_sire",
@@ -105,11 +103,9 @@ RACE_COLUMNS = [
 
     "brand_number",
     "country_of_origin",
+    "horse_age_at_race",
     "horse_colour",
     "horse_sex",
-    "import_type",
-    "import_date",
-    "owner",
     "sire",
     "dam",
     "dam_sire",
@@ -294,6 +290,211 @@ def extract_horse_id(href):
         )
 
     return ""
+
+
+# ============================================================
+# HORSE AGE HELPERS
+# ============================================================
+
+SOUTHERN_HEMISPHERE_ORIGINS = {
+    "AUS",
+    "AUSTRALIA",
+
+    "NZ",
+    "NEW ZEALAND",
+
+    "SAF",
+    "RSA",
+    "ZA",
+    "SOUTH AFRICA",
+}
+
+
+def is_southern_hemisphere_horse(
+    country_of_origin
+):
+    country = clean_text(
+        country_of_origin
+    ).upper()
+
+    return (
+        country
+        in
+        SOUTHERN_HEMISPHERE_ORIGINS
+    )
+
+
+def get_official_horse_birthday(
+    country_of_origin
+):
+    if is_southern_hemisphere_horse(
+        country_of_origin
+    ):
+        # Australia, New Zealand,
+        # South Africa:
+        # official birthday = 1 August
+        return 8, 1
+
+    # Northern Hemisphere / all others:
+    # official birthday = 1 January
+    return 1, 1
+
+
+def parse_date_only(value):
+    if value is None:
+        return None
+
+    text = clean_text(
+        value
+    )
+
+    if not text:
+        return None
+
+    parsed = pd.to_datetime(
+        text,
+        errors="coerce",
+        utc=True
+    )
+
+    if pd.isna(parsed):
+        return None
+
+    return parsed.date()
+
+
+def infer_horse_birth_year(
+    current_age,
+    country_of_origin,
+    profile_scraped_at
+):
+    """
+    Infer the official racing birth year from the
+    horse's current HKJC age.
+
+    Example:
+        NZ horse
+        age = 6
+        scraped = 2026-09-04
+
+        Most recent official birthday:
+        2026-08-01
+
+        Birth year:
+        2026 - 6 = 2020
+    """
+
+    age = parse_integer(
+        current_age
+    )
+
+    if age is None:
+        return None
+
+    scraped_date = parse_date_only(
+        profile_scraped_at
+    )
+
+    if scraped_date is None:
+        return None
+
+    birthday_month, birthday_day = (
+        get_official_horse_birthday(
+            country_of_origin
+        )
+    )
+
+    official_birthday_this_year = (
+        scraped_date.replace(
+            month=birthday_month,
+            day=birthday_day
+        )
+    )
+
+    if (
+        scraped_date
+        <
+        official_birthday_this_year
+    ):
+        reference_birthday_year = (
+            scraped_date.year - 1
+        )
+
+    else:
+        reference_birthday_year = (
+            scraped_date.year
+        )
+
+    birth_year = (
+        reference_birthday_year
+        -
+        age
+    )
+
+    return birth_year
+
+
+def calculate_horse_age_at_race(
+    current_age,
+    country_of_origin,
+    profile_scraped_at,
+    race_date
+):
+    """
+    Calculate the horse's official age on
+    a historical race date.
+
+    Southern Hemisphere horses:
+        birthday = 1 August
+
+    All other horses:
+        birthday = 1 January
+    """
+
+    birth_year = infer_horse_birth_year(
+        current_age,
+        country_of_origin,
+        profile_scraped_at
+    )
+
+    if birth_year is None:
+        return None
+
+    race_date_parsed = parse_date_only(
+        race_date
+    )
+
+    if race_date_parsed is None:
+        return None
+
+    birthday_month, birthday_day = (
+        get_official_horse_birthday(
+            country_of_origin
+        )
+    )
+
+    age_at_race = (
+        race_date_parsed.year
+        -
+        birth_year
+    )
+
+    # If the official birthday had not yet
+    # occurred in that race year, subtract one.
+    if (
+        race_date_parsed.month,
+        race_date_parsed.day
+    ) < (
+        birthday_month,
+        birthday_day
+    ):
+        age_at_race -= 1
+
+    # Prevent impossible negative ages.
+    if age_at_race < 0:
+        return None
+
+    return age_at_race
 
 
 # ============================================================
@@ -1256,6 +1457,14 @@ def extract_results(
 # HORSE PROFILE
 # ============================================================
 
+# Import Type, Import Date and Owner are deliberately
+# retained as LABEL BOUNDARIES only.
+#
+# Their values are NOT extracted or stored.
+#
+# Keeping the labels here prevents neighbouring fields
+# such as Sire or Colour from swallowing unwanted text.
+
 PROFILE_LABELS = [
     "Country of Origin / Age",
     "Country of Origin",
@@ -1375,7 +1584,9 @@ def extract_horse_profile(
         "profile_scraped"
     ] = False
 
-    # Horse name / brand
+    # --------------------------------------------------------
+    # HORSE NAME / BRAND
+    # --------------------------------------------------------
 
     heading_match = re.search(
         r"\b([A-Z][A-Z0-9 '&.\-]+?)"
@@ -1406,7 +1617,9 @@ def extract_horse_profile(
             heading_match.group(2)
         )
 
-    # Country of origin
+    # --------------------------------------------------------
+    # COUNTRY OF ORIGIN / CURRENT AGE
+    # --------------------------------------------------------
 
     origin_age = extract_profile_value_any(
         text,
@@ -1421,17 +1634,41 @@ def extract_horse_profile(
         parts = [
             clean_text(item)
             for item in origin_age.split(
-                "/"
+                "/",
+                1
             )
         ]
 
-        if parts:
+        # Country
+        if (
+            parts
+            and
+            parts[0]
+        ):
 
             profile[
                 "country_of_origin"
             ] = parts[0]
 
-    # Colour / sex
+        # Current age
+        #
+        # Only populate when an age is actually
+        # present on the page.
+        if len(parts) >= 2:
+
+            age = parse_integer(
+                parts[1]
+            )
+
+            if age is not None:
+
+                profile[
+                    "horse_age"
+                ] = age
+
+    # --------------------------------------------------------
+    # COLOUR / SEX
+    # --------------------------------------------------------
 
     colour_sex = extract_profile_value(
         text,
@@ -1460,26 +1697,9 @@ def extract_horse_profile(
                 "horse_sex"
             ] = parts[1]
 
-    profile[
-        "import_type"
-    ] = extract_profile_value(
-        text,
-        "Import Type"
-    )
-
-    profile[
-        "import_date"
-    ] = extract_profile_value(
-        text,
-        "Import Date"
-    )
-
-    profile[
-        "owner"
-    ] = extract_profile_value(
-        text,
-        "Owner"
-    )
+    # --------------------------------------------------------
+    # PEDIGREE
+    # --------------------------------------------------------
 
     profile[
         "sire"
@@ -1502,18 +1722,22 @@ def extract_horse_profile(
         "Dam's Sire"
     )
 
+    # --------------------------------------------------------
+    # SCRAPE SUCCESS
+    # --------------------------------------------------------
+
     useful_fields = [
         profile.get(
             "country_of_origin"
+        ),
+        profile.get(
+            "horse_age"
         ),
         profile.get(
             "horse_colour"
         ),
         profile.get(
             "horse_sex"
-        ),
-        profile.get(
-            "owner"
         ),
         profile.get(
             "sire"
@@ -1546,50 +1770,52 @@ def extract_horse_profile(
                 profile[
                     "horse_id"
                 ],
+
             "horse_name":
                 profile[
                     "horse_name"
                 ],
+
             "brand":
                 profile[
                     "brand_number"
                 ],
+
             "origin":
                 profile[
                     "country_of_origin"
                 ],
+
+            "age":
+                profile[
+                    "horse_age"
+                ],
+
             "colour":
                 profile[
                     "horse_colour"
                 ],
+
             "sex":
                 profile[
                     "horse_sex"
                 ],
-            "import_type":
-                profile[
-                    "import_type"
-                ],
-            "import_date":
-                profile[
-                    "import_date"
-                ],
-            "owner":
-                profile[
-                    "owner"
-                ],
+
             "sire":
                 profile[
                     "sire"
                 ],
+
             "dam":
                 profile[
                     "dam"
                 ],
+
             "dam_sire":
                 profile[
                     "dam_sire"
                 ],
+
             "success":
                 profile[
                     "profile_scraped"
@@ -1607,10 +1833,20 @@ def extract_horse_profile(
 def load_horse_master():
     horse_master = {}
 
+    # Horses in this set were loaded from an old
+    # horse_master.csv that did not yet contain
+    # the new horse_age column.
+    #
+    # They will be re-scraped once when encountered.
+    age_refresh_pending = set()
+
     if not os.path.exists(
         HORSE_MASTER_FILE
     ):
-        return horse_master
+        return (
+            horse_master,
+            age_refresh_pending
+        )
 
     try:
 
@@ -1626,7 +1862,17 @@ def load_horse_master():
             exc
         )
 
-        return horse_master
+        return (
+            horse_master,
+            age_refresh_pending
+        )
+
+    # Detect whether this is an old schema.
+    had_horse_age_column = (
+        "horse_age"
+        in
+        df.columns
+    )
 
     for column in HORSE_COLUMNS:
 
@@ -1659,7 +1905,24 @@ def load_horse_master():
             in HORSE_COLUMNS
         }
 
-    return horse_master
+        if not had_horse_age_column:
+
+            age_refresh_pending.add(
+                horse_id
+            )
+
+    if age_refresh_pending:
+
+        print(
+            f"{len(age_refresh_pending)} "
+            f"existing horse profiles "
+            f"need a one-time age refresh."
+        )
+
+    return (
+        horse_master,
+        age_refresh_pending
+    )
 
 
 def save_horse_master(
@@ -1682,6 +1945,11 @@ def save_horse_master(
                 column
             ] = ""
 
+    # IMPORTANT:
+    #
+    # Selecting only HORSE_COLUMNS means any old
+    # columns such as import_type, import_date or
+    # owner are physically removed from the CSV.
     df = df[
         HORSE_COLUMNS
     ]
@@ -1731,7 +1999,8 @@ def horse_profile_is_scraped(
 
 def ensure_horse_profiles(
     results_df,
-    horse_master
+    horse_master,
+    age_refresh_pending
 ):
     if results_df is None:
         return
@@ -1773,8 +2042,18 @@ def ensure_horse_profiles(
             horse_id
         )
 
-        if horse_profile_is_scraped(
-            existing
+        force_age_refresh = (
+            horse_id
+            in
+            age_refresh_pending
+        )
+
+        if (
+            horse_profile_is_scraped(
+                existing
+            )
+            and
+            not force_age_refresh
         ):
 
             print(
@@ -1785,17 +2064,29 @@ def ensure_horse_profiles(
 
             continue
 
-        print(
-            f"Scraping horse: "
-            f"{horse_id} "
-            f"{horse_name}"
-        )
+        if force_age_refresh:
+
+            print(
+                f"Refreshing horse for age: "
+                f"{horse_id} "
+                f"{horse_name}"
+            )
+
+        else:
+
+            print(
+                f"Scraping horse: "
+                f"{horse_id} "
+                f"{horse_name}"
+            )
 
         response = request_horse_page(
             horse_id
         )
 
         if response is None:
+            # Leave it pending so another race can
+            # retry later during this run.
             continue
 
         profile = extract_horse_profile(
@@ -1805,9 +2096,52 @@ def ensure_horse_profiles(
             horse_name
         )
 
+        # If this was a refresh of an existing horse,
+        # preserve any previously valid fields when the
+        # newly scraped page happens to return blanks.
+        if existing:
+
+            merged_profile = dict(
+                existing
+            )
+
+            for column in HORSE_COLUMNS:
+
+                new_value = profile.get(
+                    column,
+                    ""
+                )
+
+                if (
+                    column
+                    in {
+                        "profile_scraped",
+                        "profile_scraped_at",
+                        "profile_url",
+                    }
+                ):
+                    merged_profile[
+                        column
+                    ] = new_value
+
+                elif clean_text(
+                    new_value
+                ):
+                    merged_profile[
+                        column
+                    ] = new_value
+
+            profile = merged_profile
+
         horse_master[
             horse_id
         ] = profile
+
+        # The profile has now been checked using
+        # the new age-aware parser.
+        age_refresh_pending.discard(
+            horse_id
+        )
 
         # Immediate checkpoint after each new horse
         save_horse_master(
@@ -1832,6 +2166,12 @@ def enrich_results_with_horse_master(
 
     df = results_df.copy()
 
+    # Static horse data copied directly from master.
+    #
+    # Note that horse_age is intentionally NOT copied
+    # directly into results because results require the
+    # historical age on the race date.
+
     horse_to_result = {
         "brand_number":
             "brand_number",
@@ -1844,15 +2184,6 @@ def enrich_results_with_horse_master(
 
         "horse_sex":
             "horse_sex",
-
-        "import_type":
-            "import_type",
-
-        "import_date":
-            "import_date",
-
-        "owner":
-            "owner",
 
         "sire":
             "sire",
@@ -1897,6 +2228,33 @@ def enrich_results_with_horse_master(
                 )
             )
 
+    # Historical age column.
+    if (
+        "horse_age_at_race"
+        not in df.columns
+    ):
+
+        df[
+            "horse_age_at_race"
+        ] = pd.Series(
+            [None] * len(df),
+            index=df.index,
+            dtype="object"
+        )
+
+    else:
+
+        df[
+            "horse_age_at_race"
+        ] = (
+            df[
+                "horse_age_at_race"
+            ]
+            .astype(
+                "object"
+            )
+        )
+
     for index, row in df.iterrows():
 
         horse_id = clean_text(
@@ -1916,6 +2274,10 @@ def enrich_results_with_horse_master(
         if not horse:
             continue
 
+        # ----------------------------------------------------
+        # STATIC HORSE FIELDS
+        # ----------------------------------------------------
+
         for (
             horse_column,
             result_column
@@ -1928,6 +2290,36 @@ def enrich_results_with_horse_master(
                 horse_column,
                 ""
             )
+
+        # ----------------------------------------------------
+        # HISTORICAL AGE ON THIS RACE DATE
+        # ----------------------------------------------------
+
+        age_at_race = (
+            calculate_horse_age_at_race(
+                current_age=horse.get(
+                    "horse_age",
+                    ""
+                ),
+                country_of_origin=horse.get(
+                    "country_of_origin",
+                    ""
+                ),
+                profile_scraped_at=horse.get(
+                    "profile_scraped_at",
+                    ""
+                ),
+                race_date=row.get(
+                    "race_date",
+                    ""
+                ),
+            )
+        )
+
+        df.at[
+            index,
+            "horse_age_at_race"
+        ] = age_at_race
 
     return df
 
@@ -1969,8 +2361,8 @@ def backfill_existing_results(
 
     print(
         f"Backfilling static horse "
-        f"information onto "
-        f"{len(df)} rows..."
+        f"information and historical age "
+        f"onto {len(df)} rows..."
     )
 
     df = enrich_results_with_horse_master(
@@ -1990,6 +2382,11 @@ def backfill_existing_results(
                 dtype="object"
             )
 
+    # IMPORTANT:
+    #
+    # Selecting only RACE_COLUMNS means old fields
+    # such as import_type, import_date and owner
+    # are physically removed from all_results.csv.
     df = df[
         RACE_COLUMNS
     ]
@@ -2618,6 +3015,7 @@ def save_daily_checkpoint(
     )
 
     # Refresh static horse fields
+    # and historical ages
     backfill_existing_results(
         horse_master
     )
@@ -2638,7 +3036,8 @@ def save_daily_checkpoint(
 def process_date(
     meeting_date,
     existing_result_ids,
-    horse_master
+    horse_master,
+    age_refresh_pending
 ):
     print()
     print(
@@ -2772,11 +3171,12 @@ def process_date(
 
         ensure_horse_profiles(
             results_df,
-            horse_master
+            horse_master,
+            age_refresh_pending
         )
 
         # ----------------------------------------------------
-        # STATIC HORSE DATA ON RESULT ROW
+        # STATIC HORSE DATA + HISTORICAL AGE
         # ----------------------------------------------------
 
         results_df = (
@@ -2871,9 +3271,10 @@ def main():
     # LOAD HORSE MASTER
     # --------------------------------------------------------
 
-    horse_master = (
-        load_horse_master()
-    )
+    (
+        horse_master,
+        age_refresh_pending
+    ) = load_horse_master()
 
     print(
         "Horse master records:",
@@ -2943,6 +3344,14 @@ def main():
         )
     )
 
+    print(
+        "Horse profiles needing "
+        "age refresh:",
+        len(
+            age_refresh_pending
+        )
+    )
+
     # --------------------------------------------------------
     # PROCESS DATE RANGE
     # --------------------------------------------------------
@@ -2957,16 +3366,14 @@ def main():
             process_date(
                 meeting_date,
                 existing_result_ids,
-                horse_master
+                horse_master,
+                age_refresh_pending
             )
 
         except Exception as exc:
 
             # ------------------------------------------------
             # EMERGENCY SAVE
-            #
-            # If a meeting crashes unexpectedly,
-            # preserve everything already written.
             # ------------------------------------------------
 
             print()
@@ -3002,9 +3409,6 @@ def main():
                     "Emergency save failed:",
                     save_exc
                 )
-
-            # Continue to next date instead of
-            # killing the entire job.
 
             continue
 
@@ -3053,6 +3457,16 @@ def main():
         "Horse master:",
         HORSE_MASTER_FILE
     )
+
+    if age_refresh_pending:
+
+        print(
+            "Horse profiles still awaiting "
+            "age refresh:",
+            len(
+                age_refresh_pending
+            )
+        )
 
 
 if __name__ == "__main__":
