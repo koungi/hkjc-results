@@ -2,7 +2,13 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin
+from urllib.parse import (
+    urljoin,
+    urlsplit,
+    urlunsplit,
+    parse_qsl,
+    urlencode,
+)
 
 import pandas as pd
 import requests
@@ -78,13 +84,14 @@ HORSE_COLUMNS = [
 
 
 # ============================================================
-# HORSE RATING CACHE COLUMNS
+# HORSE RATING / FORM CACHE COLUMNS
 # ============================================================
 
 HORSE_RATING_CACHE_COLUMNS = [
     "horse_id",
     "race_date",
     "race_index",
+    "race_class",
     "horse_rating_before",
     "horse_rating_after",
     "rating_source_url",
@@ -520,6 +527,68 @@ def calculate_horse_age_at_race(
 # URL BUILDERS
 # ============================================================
 
+def ensure_horse_option_1(
+    url
+):
+    """
+    Ensure a horse URL contains Option=1
+    as the final query-string parameter.
+
+    Example:
+
+    Input:
+        https://racing.hkjc.com/en-us/local/information/horse?horseid=HK_2024_K256
+
+    Output:
+        https://racing.hkjc.com/en-us/local/information/horse?horseid=HK_2024_K256&Option=1
+    """
+
+    url = clean_text(
+        url
+    )
+
+    if not url:
+        return ""
+
+    parts = urlsplit(
+        url
+    )
+
+    query_pairs = [
+        (
+            key,
+            value
+        )
+        for (
+            key,
+            value
+        ) in parse_qsl(
+            parts.query,
+            keep_blank_values=True
+        )
+        if key.lower() != "option"
+    ]
+
+    query_pairs.append(
+        (
+            "Option",
+            "1"
+        )
+    )
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(
+                query_pairs
+            ),
+            parts.fragment,
+        )
+    )
+
+
 def build_url(
     race_date,
     racecourse=None,
@@ -550,18 +619,26 @@ def build_url(
 def build_horse_url(
     horse_id
 ):
-    return (
+    url = (
         f"{HORSE_BASE_URL}"
         f"?horseid={horse_id}"
+    )
+
+    return ensure_horse_option_1(
+        url
     )
 
 
 def build_other_horse_url(
     horse_id
 ):
-    return (
+    url = (
         f"{HORSE_OTHER_BASE_URL}"
         f"?horseid={horse_id}"
+    )
+
+    return ensure_horse_option_1(
+        url
     )
 
 
@@ -620,6 +697,7 @@ def request_horse_page(
 
         print(
             f"HORSE {horse_id} "
+            f"{url} "
             f"-> {response.status_code}"
         )
 
@@ -640,6 +718,10 @@ def request_rating_url(
     url,
     horse_id
 ):
+    url = ensure_horse_option_1(
+        url
+    )
+
     try:
         response = session.get(
             url,
@@ -862,6 +944,12 @@ def extract_race_metadata(
         "race_name":
             "",
 
+        # This may still be parsed from the race page
+        # for diagnostics, but it is NOT written into
+        # the final result rows.
+        #
+        # Final race_class comes from each horse's
+        # form-history "Race Class" column.
         "race_class":
             "",
 
@@ -1173,7 +1261,9 @@ def extract_race_metadata(
                     "race_name"
                 ],
 
-            "race_class":
+            # Diagnostic only.
+            # Not used for all_results.csv.
+            "header_race_class":
                 metadata[
                     "race_class"
                 ],
@@ -1665,9 +1755,13 @@ def extract_results(
                 ""
             )
 
-            horse_url = urljoin(
-                "https://racing.hkjc.com",
-                href
+            horse_url = (
+                ensure_horse_option_1(
+                    urljoin(
+                        "https://racing.hkjc.com",
+                        href
+                    )
+                )
             )
 
         horse_cell = get_result_cell(
@@ -1809,10 +1903,12 @@ def extract_results(
                     "race_name"
                 ],
 
+            # IMPORTANT:
+            # Race class is deliberately left blank here.
+            # It is later populated from the matching row
+            # of the horse's Option=1 form-history table.
             "race_class":
-                race_metadata[
-                    "race_class"
-                ],
+                "",
 
             "distance_m":
                 race_metadata[
@@ -2015,6 +2111,12 @@ def extract_horse_profile(
 
     text = normalise_profile_text(
         soup
+    )
+
+    profile_url = (
+        ensure_horse_option_1(
+            profile_url
+        )
     )
 
     profile = {
@@ -2350,6 +2452,21 @@ def load_horse_master():
             )
         )
 
+        profile_url = clean_text(
+            record.get(
+                "profile_url",
+                ""
+            )
+        )
+
+        if profile_url:
+
+            record[
+                "profile_url"
+            ] = ensure_horse_option_1(
+                profile_url
+            )
+
         horse_master[
             horse_id
         ] = record
@@ -2390,6 +2507,21 @@ def save_horse_master(
                 ""
             )
         )
+
+        profile_url = clean_text(
+            horse.get(
+                "profile_url",
+                ""
+            )
+        )
+
+        if profile_url:
+
+            horse[
+                "profile_url"
+            ] = ensure_horse_option_1(
+                profile_url
+            )
 
     df = pd.DataFrame(
         list(
@@ -2538,7 +2670,9 @@ def ensure_horse_profiles(
         profile = extract_horse_profile(
             response.text,
             horse_id,
-            response.url,
+            ensure_horse_option_1(
+                response.url
+            ),
             horse_name
         )
 
@@ -2581,6 +2715,17 @@ def ensure_horse_profiles(
             profile.get(
                 "country_of_origin",
                 ""
+            )
+        )
+
+        profile[
+            "profile_url"
+        ] = ensure_horse_option_1(
+            profile.get(
+                "profile_url",
+                build_horse_url(
+                    horse_id
+                )
             )
         )
 
@@ -2735,6 +2880,21 @@ def enrich_results_with_horse_master(
                 ""
             )
         )
+
+        profile_url = clean_text(
+            horse.get(
+                "profile_url",
+                ""
+            )
+        )
+
+        if profile_url:
+
+            horse[
+                "profile_url"
+            ] = ensure_horse_option_1(
+                profile_url
+            )
 
         for (
             horse_column,
@@ -2976,7 +3136,7 @@ def append_results(
 
 
 # ============================================================
-# HORSE RATING FORM TABLE
+# HORSE RATING / FORM TABLE
 # ============================================================
 
 HORSE_FORM_HEADER_ALIASES = {
@@ -2988,6 +3148,11 @@ HORSE_FORM_HEADER_ALIASES = {
     "date": {
         "date",
         "race date",
+    },
+
+    "race_class": {
+        "race class",
+        "class",
     },
 
     "rating": {
@@ -3111,6 +3276,7 @@ def build_horse_form_column_map(
     required = {
         "race_index",
         "date",
+        "race_class",
         "rating",
     }
 
@@ -3273,10 +3439,21 @@ def extract_horse_rating_history(
 
     if table is None:
 
+        print(
+            f"WARNING: horse form table "
+            f"not found for {horse_id}"
+        )
+
         return pd.DataFrame(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
         )
+
+    print(
+        f"HORSE FORM COLUMN MAP "
+        f"{horse_id}:",
+        column_map
+    )
 
     records = []
 
@@ -3307,6 +3484,14 @@ def extract_horse_rating_history(
             )
         )
 
+        race_class = clean_text(
+            get_form_cell_text(
+                cells,
+                column_map,
+                "race_class"
+            )
+        )
+
         rating_before = parse_integer(
             get_form_cell_text(
                 cells,
@@ -3334,6 +3519,12 @@ def extract_horse_rating_history(
             "race_index":
                 race_index,
 
+            # IMPORTANT:
+            # Comes directly from the horse
+            # form-history Race Class column.
+            "race_class":
+                race_class,
+
             "horse_rating_before":
                 rating_before,
 
@@ -3341,7 +3532,9 @@ def extract_horse_rating_history(
                 None,
 
             "rating_source_url":
-                source_url,
+                ensure_horse_option_1(
+                    source_url
+                ),
 
             "rating_scraped_at":
                 utc_now_string(),
@@ -3446,8 +3639,11 @@ def rating_page_candidate_urls(
     )
 
     if preferred_url:
+
         urls.append(
-            preferred_url
+            ensure_horse_option_1(
+                preferred_url
+            )
         )
 
     urls.append(
@@ -3466,6 +3662,10 @@ def rating_page_candidate_urls(
     seen = set()
 
     for url in urls:
+
+        url = ensure_horse_option_1(
+            url
+        )
 
         if url in seen:
             continue
@@ -3504,23 +3704,37 @@ def scrape_horse_rating_history(
             extract_horse_rating_history(
                 response.text,
                 horse_id,
-                response.url
+                ensure_horse_option_1(
+                    response.url
+                )
             )
         )
 
         if not history_df.empty:
 
+            class_count = (
+                history_df[
+                    "race_class"
+                ]
+                .astype(str)
+                .map(clean_text)
+                .ne("")
+                .sum()
+            )
+
             print(
-                f"RATING HISTORY: "
+                f"RATING / FORM HISTORY: "
                 f"{horse_id} -> "
                 f"{len(history_df)} "
-                f"form records"
+                f"form records, "
+                f"{class_count} "
+                f"race classes"
             )
 
             return history_df
 
     print(
-        f"WARNING: no rating history "
+        f"WARNING: no rating/form history "
         f"found for {horse_id}"
     )
 
@@ -3531,7 +3745,7 @@ def scrape_horse_rating_history(
 
 
 # ============================================================
-# HORSE RATING CACHE
+# HORSE RATING / FORM CACHE
 # ============================================================
 
 def load_horse_rating_cache():
@@ -3571,6 +3785,24 @@ def load_horse_rating_cache():
         if column not in df.columns:
             df[column] = ""
 
+    if (
+        "rating_source_url"
+        in df.columns
+    ):
+
+        df[
+            "rating_source_url"
+        ] = df[
+            "rating_source_url"
+        ].apply(
+            lambda value:
+                ensure_horse_option_1(
+                    value
+                )
+                if clean_text(value)
+                else ""
+        )
+
     return df[
         HORSE_RATING_CACHE_COLUMNS
     ]
@@ -3590,6 +3822,24 @@ def save_horse_rating_cache(
 
         if column not in df.columns:
             df[column] = ""
+
+    if (
+        "rating_source_url"
+        in df.columns
+    ):
+
+        df[
+            "rating_source_url"
+        ] = df[
+            "rating_source_url"
+        ].apply(
+            lambda value:
+                ensure_horse_option_1(
+                    value
+                )
+                if clean_text(value)
+                else ""
+        )
 
     df = df[
         HORSE_RATING_CACHE_COLUMNS
@@ -3723,6 +3973,12 @@ def build_rating_cache_lookup(
         lookup[
             key
         ] = {
+            "race_class":
+                row.get(
+                    "race_class",
+                    ""
+                ),
+
             "horse_rating_before":
                 row.get(
                     "horse_rating_before",
@@ -3744,6 +4000,29 @@ def apply_rating_cache_to_results(
     cache_df
 ):
     df = results_df.copy()
+
+    if (
+        "race_class"
+        not in df.columns
+    ):
+
+        df[
+            "race_class"
+        ] = pd.Series(
+            [None] * len(df),
+            index=df.index,
+            dtype="object"
+        )
+
+    else:
+
+        df[
+            "race_class"
+        ] = df[
+            "race_class"
+        ].astype(
+            "object"
+        )
 
     for column in [
         "horse_rating_before",
@@ -3775,6 +4054,7 @@ def apply_rating_cache_to_results(
     )
 
     matched = 0
+    class_matched = 0
 
     for index, row in df.iterrows():
 
@@ -3805,6 +4085,24 @@ def apply_rating_cache_to_results(
         if rating_record is None:
             continue
 
+        race_class = clean_text(
+            rating_record.get(
+                "race_class",
+                ""
+            )
+        )
+
+        # IMPORTANT:
+        # This overwrites any old/header-derived
+        # race_class with the horse form-table value.
+        df.at[
+            index,
+            "race_class"
+        ] = race_class
+
+        if race_class:
+            class_matched += 1
+
         df.at[
             index,
             "horse_rating_before"
@@ -3824,8 +4122,10 @@ def apply_rating_cache_to_results(
         matched += 1
 
     print(
-        f"Rating cache matched "
-        f"{matched} result rows."
+        f"Rating/form cache matched "
+        f"{matched} result rows; "
+        f"race class populated on "
+        f"{class_matched} rows."
     )
 
     return df
@@ -3835,10 +4135,10 @@ def find_horses_missing_rating_cache_rows(
     results_df,
     cache_df
 ):
-    cached_keys = set(
+    cache_lookup = (
         build_rating_cache_lookup(
             cache_df
-        ).keys()
+        )
     )
 
     missing_horses = {}
@@ -3865,7 +4165,26 @@ def find_horses_missing_rating_cache_rows(
         if key is None:
             continue
 
-        if key in cached_keys:
+        cached_record = (
+            cache_lookup.get(
+                key
+            )
+        )
+
+        # Existing old cache records did not have
+        # race_class. Therefore only treat the row
+        # as complete when the matching cache record
+        # actually has a race_class value.
+        if (
+            cached_record is not None
+            and
+            clean_text(
+                cached_record.get(
+                    "race_class",
+                    ""
+                )
+            )
+        ):
             continue
 
         horse_id = key[
@@ -3877,14 +4196,32 @@ def find_horses_missing_rating_cache_rows(
             not in missing_horses
         ):
 
-            missing_horses[
-                horse_id
-            ] = clean_text(
+            preferred_url = clean_text(
                 row.get(
                     "horse_profile_url",
                     ""
                 )
             )
+
+            if preferred_url:
+
+                preferred_url = (
+                    ensure_horse_option_1(
+                        preferred_url
+                    )
+                )
+
+            else:
+
+                preferred_url = (
+                    build_horse_url(
+                        horse_id
+                    )
+                )
+
+            missing_horses[
+                horse_id
+            ] = preferred_url
 
     return missing_horses
 
@@ -3950,7 +4287,7 @@ def backfill_horse_ratings():
         print(
             "Could not read "
             "all_results.csv for "
-            "rating backfill:",
+            "rating/form backfill:",
             exc
         )
 
@@ -3972,7 +4309,7 @@ def backfill_horse_ratings():
         ):
 
             print(
-                f"Cannot backfill ratings: "
+                f"Cannot backfill ratings/classes: "
                 f"missing {column}"
             )
 
@@ -3991,6 +4328,26 @@ def backfill_horse_ratings():
                 index=results_df.index,
                 dtype="object"
             )
+
+    # Make sure all existing result horse URLs
+    # are upgraded to Option=1.
+    if (
+        "horse_profile_url"
+        in results_df.columns
+    ):
+
+        results_df[
+            "horse_profile_url"
+        ] = results_df[
+            "horse_profile_url"
+        ].apply(
+            lambda value:
+                ensure_horse_option_1(
+                    value
+                )
+                if clean_text(value)
+                else ""
+        )
 
     cache_df = (
         load_horse_rating_cache()
@@ -4013,8 +4370,9 @@ def backfill_horse_ratings():
     if missing_horses:
 
         print(
-            f"Horse rating pages needing "
-            f"scrape/refresh: "
+            f"Horse form pages needing "
+            f"scrape/refresh for ratings "
+            f"and race class: "
             f"{len(missing_horses)}"
         )
 
@@ -4030,7 +4388,7 @@ def backfill_horse_ratings():
     ):
 
         print(
-            f"Rating scrape "
+            f"Rating/class scrape "
             f"{counter}/"
             f"{len(missing_horses)}: "
             f"{horse_id}"
@@ -4081,6 +4439,24 @@ def backfill_horse_ratings():
             clean_finish_time
         )
 
+    if (
+        "horse_profile_url"
+        in results_df.columns
+    ):
+
+        results_df[
+            "horse_profile_url"
+        ] = results_df[
+            "horse_profile_url"
+        ].apply(
+            lambda value:
+                ensure_horse_option_1(
+                    value
+                )
+                if clean_text(value)
+                else ""
+        )
+
     results_df = results_df[
         RACE_COLUMNS
     ]
@@ -4116,8 +4492,19 @@ def backfill_horse_ratings():
         .sum()
     )
 
+    race_class_count = (
+        results_df[
+            "race_class"
+        ]
+        .astype(str)
+        .map(clean_text)
+        .ne("")
+        .sum()
+    )
+
     print(
-        "Horse rating backfill complete:",
+        "Horse rating / race-class "
+        "backfill complete:",
         {
             "rating_before_rows":
                 int(
@@ -4127,6 +4514,11 @@ def backfill_horse_ratings():
             "rating_after_rows":
                 int(
                     after_count
+                ),
+
+            "race_class_rows":
+                int(
+                    race_class_count
                 ),
 
             "cache_rows":
@@ -4424,6 +4816,24 @@ def calculate_historical_career_stats():
             "finish_time"
         ].apply(
             clean_finish_time
+        )
+
+    if (
+        "horse_profile_url"
+        in df.columns
+    ):
+
+        df[
+            "horse_profile_url"
+        ] = df[
+            "horse_profile_url"
+        ].apply(
+            lambda value:
+                ensure_horse_option_1(
+                    value
+                )
+                if clean_text(value)
+                else ""
         )
 
     df[
@@ -5246,7 +5656,7 @@ def main():
     )
 
     print(
-        "Horse rating cache:",
+        "Horse rating/form cache:",
         HORSE_RATINGS_CACHE_FILE
     )
 
