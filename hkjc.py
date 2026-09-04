@@ -22,14 +22,28 @@ HORSE_BASE_URL = (
     "https://racing.hkjc.com/en-us/local/information/horse"
 )
 
-START_DATE = os.getenv("START_DATE", "2006-01-01")
-END_DATE = os.getenv("END_DATE", "2006-12-31")
+START_DATE = os.getenv(
+    "START_DATE",
+    "2006-01-01"
+)
+
+END_DATE = os.getenv(
+    "END_DATE",
+    "2006-12-31"
+)
 
 DELAY_SECONDS = 2
 
 RESULTS_DIR = "results"
-RACES_DIR = os.path.join(RESULTS_DIR, "races")
-HORSES_DIR = os.path.join(RESULTS_DIR, "horses")
+RACES_DIR = os.path.join(
+    RESULTS_DIR,
+    "races"
+)
+
+HORSES_DIR = os.path.join(
+    RESULTS_DIR,
+    "horses"
+)
 
 RACE_RESULTS_FILE = os.path.join(
     RACES_DIR,
@@ -183,6 +197,7 @@ def date_range(
 
     while current <= end_date:
         yield current
+
         current += timedelta(
             days=1
         )
@@ -256,7 +271,9 @@ def parse_float(value):
     )
 
     try:
-        return float(text)
+        return float(
+            text
+        )
 
     except ValueError:
         return None
@@ -376,8 +393,12 @@ def get_official_horse_birthday(
     if is_southern_hemisphere_horse(
         country_of_origin
     ):
+        # Southern Hemisphere
+        # official birthday = 1 August
         return 8, 1
 
+    # Northern / Other
+    # official birthday = 1 January
     return 1, 1
 
 
@@ -398,7 +419,9 @@ def parse_date_only(value):
         utc=True
     )
 
-    if pd.isna(parsed):
+    if pd.isna(
+        parsed
+    ):
         return None
 
     return parsed.date()
@@ -443,7 +466,9 @@ def infer_horse_birth_year(
         official_birthday_this_year
     ):
         reference_birthday_year = (
-            scraped_date.year - 1
+            scraped_date.year
+            -
+            1
         )
 
     else:
@@ -700,6 +725,7 @@ def detect_race_numbers(html):
         "a",
         href=True
     ):
+
         href = link.get(
             "href",
             ""
@@ -737,7 +763,10 @@ def get_cell_texts(row):
         )
         for cell
         in row.find_all(
-            ["td", "th"]
+            [
+                "td",
+                "th"
+            ]
         )
     ]
 
@@ -1335,7 +1364,10 @@ def build_result_column_map(
     ):
 
         cells = row.find_all(
-            ["th", "td"]
+            [
+                "th",
+                "td"
+            ]
         )
 
         if not cells:
@@ -1931,9 +1963,13 @@ PROFILE_LABELS = [
     "Country of Origin / Age",
     "Country of Origin",
     "Colour / Sex",
+
+    # These remain parsing boundaries only.
+    # They are NOT saved.
     "Import Type",
     "Import Date",
     "Owner",
+
     "Sire",
     "Dam",
     "Dam's Sire",
@@ -1964,7 +2000,9 @@ def extract_profile_value(
     ]
 
     stop_pattern = "|".join(
-        re.escape(item)
+        re.escape(
+            item
+        )
         for item
         in sorted(
             other_labels,
@@ -2088,7 +2126,7 @@ def extract_horse_profile(
         )
 
     # --------------------------------------------------------
-    # COUNTRY / AGE
+    # COUNTRY / CURRENT AGE
     # --------------------------------------------------------
 
     origin_age = (
@@ -2104,7 +2142,9 @@ def extract_horse_profile(
     if origin_age:
 
         parts = [
-            clean_text(item)
+            clean_text(
+                item
+            )
             for item
             in origin_age.split(
                 "/",
@@ -2121,7 +2161,9 @@ def extract_horse_profile(
                 "country_of_origin"
             ] = parts[0]
 
-        if len(parts) >= 2:
+        if len(
+            parts
+        ) >= 2:
 
             age = parse_integer(
                 parts[1]
@@ -2150,8 +2192,8 @@ def extract_horse_profile(
     # FOALED DATE
     # --------------------------------------------------------
     #
-    # Deliberately not scraped.
-    # This is for manual population.
+    # Deliberately NOT scraped.
+    # This column is for manual population.
     #
     # --------------------------------------------------------
 
@@ -2159,15 +2201,16 @@ def extract_horse_profile(
     # COLOUR / SEX
     # --------------------------------------------------------
     #
-    # IMPORTANT:
-    # Split from the RIGHT so multi-colour horses such as:
+    # Split from the RIGHT.
+    #
+    # Example:
     #
     # Bay / Brown / Gelding
     #
-    # become:
+    # becomes:
     #
-    # horse_colour = Bay / Brown
-    # horse_sex    = Gelding
+    # colour = Bay / Brown
+    # sex    = Gelding
     #
     # --------------------------------------------------------
 
@@ -2181,7 +2224,9 @@ def extract_horse_profile(
     if colour_sex:
 
         parts = [
-            clean_text(item)
+            clean_text(
+                item
+            )
             for item
             in colour_sex.rsplit(
                 "/",
@@ -2195,7 +2240,9 @@ def extract_horse_profile(
                 "horse_colour"
             ] = parts[0]
 
-        if len(parts) >= 2:
+        if len(
+            parts
+        ) >= 2:
 
             profile[
                 "horse_sex"
@@ -2252,7 +2299,9 @@ def extract_horse_profile(
     ]
 
     success = any(
-        clean_text(item)
+        clean_text(
+            item
+        )
         for item
         in useful_fields
         if item is not None
@@ -2576,7 +2625,8 @@ def ensure_horse_profiles(
 
         force_age_refresh = (
             horse_id
-            in age_refresh_pending
+            in
+            age_refresh_pending
         )
 
         if (
@@ -2749,7 +2799,9 @@ def enrich_results_with_horse_master(
             df[
                 result_column
             ] = pd.Series(
-                [None] * len(df),
+                [None] * len(
+                    df
+                ),
                 index=df.index,
                 dtype="object"
             )
@@ -2775,7 +2827,9 @@ def enrich_results_with_horse_master(
         df[
             "horse_age_at_race"
         ] = pd.Series(
-            [None] * len(df),
+            [None] * len(
+                df
+            ),
             index=df.index,
             dtype="object"
         )
@@ -2931,7 +2985,9 @@ def backfill_existing_results(
             df[
                 column
             ] = pd.Series(
-                [None] * len(df),
+                [None] * len(
+                    df
+                ),
                 index=df.index,
                 dtype="object"
             )
@@ -2975,7 +3031,9 @@ def load_existing_result_ids():
                 "result_id"
             ]
             .dropna()
-            .astype(str)
+            .astype(
+                str
+            )
         )
 
     except Exception as exc:
@@ -3012,7 +3070,9 @@ def append_results(
         ~df[
             "result_id"
         ]
-        .astype(str)
+        .astype(
+            str
+        )
         .isin(
             existing_ids
         )
@@ -3033,7 +3093,9 @@ def append_results(
             df[
                 column
             ] = pd.Series(
-                [None] * len(df),
+                [None] * len(
+                    df
+                ),
                 index=df.index,
                 dtype="object"
             )
@@ -3059,7 +3121,9 @@ def append_results(
         df[
             "result_id"
         ]
-        .astype(str)
+        .astype(
+            str
+        )
     )
 
     print(
@@ -3073,10 +3137,68 @@ def append_results(
 # PRIZE PAYOUT MODEL
 # ============================================================
 
+def get_prize_payout_schedule(
+    race_date
+):
+    """
+    Return normal prize-money payout percentages.
+
+    Before 2023-09-10:
+
+        1st = 56%
+        2nd = 21%
+        3rd = 11.5%
+        4th = 6%
+        5th = 5.5%
+
+    From 2023-09-10:
+
+        1st = 56%
+        2nd = 21%
+        3rd = 11.5%
+        4th = 6%
+        5th = 3.5%
+        6th = 2%
+    """
+
+    if pd.isna(
+        race_date
+    ):
+        return {}
+
+    if (
+        race_date
+        <
+        PAYOUT_MODEL_CUTOFF
+    ):
+
+        return {
+            1: 0.56,
+            2: 0.21,
+            3: 0.115,
+            4: 0.06,
+            5: 0.055,
+        }
+
+    return {
+        1: 0.56,
+        2: 0.21,
+        3: 0.115,
+        4: 0.06,
+        5: 0.035,
+        6: 0.02,
+    }
+
+
 def get_prize_payout_percentage(
     race_date,
     finishing_position
 ):
+    """
+    Return normal payout percentage for a
+    single non-dead-heat placing.
+    """
+
     if pd.isna(
         race_date
     ):
@@ -3099,38 +3221,203 @@ def get_prize_payout_percentage(
     ):
         return 0.0
 
-    if (
-        race_date
-        <
-        PAYOUT_MODEL_CUTOFF
-    ):
-
-        payout = {
-            1: 0.56,
-            2: 0.21,
-            3: 0.115,
-            4: 0.06,
-            5: 0.055,
-        }
-
-        return payout.get(
-            position,
-            0.0
+    payout_schedule = (
+        get_prize_payout_schedule(
+            race_date
         )
+    )
 
-    payout = {
-        1: 0.56,
-        2: 0.21,
-        3: 0.115,
-        4: 0.06,
-        5: 0.035,
-        6: 0.02,
-    }
-
-    return payout.get(
+    return payout_schedule.get(
         position,
         0.0
     )
+
+
+def calculate_dead_heat_payout_percentages(
+    df
+):
+    """
+    Calculate payout percentage race-by-race.
+
+    Dead heat examples:
+
+    Two dead-heat for 1st:
+
+        (1st + 2nd) / 2
+
+    Two dead-heat for 4th:
+
+        (4th + 5th) / 2
+
+    Two dead-heat for 6th:
+
+        (6th + 7th) / 2
+
+    Since 7th has no allocation:
+
+        6th / 2
+
+    Three dead-heat for 1st:
+
+        (1st + 2nd + 3rd) / 3
+
+    This works automatically for any number
+    of dead-heating horses.
+    """
+
+    payout_percentages = pd.Series(
+        0.0,
+        index=df.index,
+        dtype="float64"
+    )
+
+    if (
+        "race_id"
+        not in df.columns
+    ):
+        return payout_percentages
+
+    for (
+        race_id,
+        race_group
+    ) in df.groupby(
+        "race_id",
+        sort=False,
+        dropna=False
+    ):
+
+        if race_group.empty:
+            continue
+
+        race_date = race_group[
+            "_race_date_sort"
+        ].iloc[
+            0
+        ]
+
+        payout_schedule = (
+            get_prize_payout_schedule(
+                race_date
+            )
+        )
+
+        race_with_positions = (
+            race_group[
+                race_group[
+                    "_finish_numeric"
+                ]
+                .notna()
+            ]
+        )
+
+        if race_with_positions.empty:
+            continue
+
+        for (
+            finishing_position,
+            position_group
+        ) in (
+            race_with_positions
+            .groupby(
+                "_finish_numeric",
+                sort=True
+            )
+        ):
+
+            try:
+
+                position = int(
+                    finishing_position
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+                continue
+
+            number_dead_heating = len(
+                position_group
+            )
+
+            # ------------------------------------------------
+            # NORMAL SINGLE FINISHER AT THIS POSITION
+            # ------------------------------------------------
+
+            if (
+                number_dead_heating
+                == 1
+            ):
+
+                payout_percentage = (
+                    payout_schedule.get(
+                        position,
+                        0.0
+                    )
+                )
+
+            # ------------------------------------------------
+            # DEAD HEAT
+            # ------------------------------------------------
+
+            else:
+
+                combined_percentage = 0.0
+
+                for offset in range(
+                    number_dead_heating
+                ):
+
+                    occupied_position = (
+                        position
+                        +
+                        offset
+                    )
+
+                    combined_percentage += (
+                        payout_schedule.get(
+                            occupied_position,
+                            0.0
+                        )
+                    )
+
+                payout_percentage = (
+                    combined_percentage
+                    /
+                    number_dead_heating
+                )
+
+                print(
+                    "DEAD HEAT PAYOUT:",
+                    {
+                        "race_id":
+                            race_id,
+
+                        "position":
+                            position,
+
+                        "horses":
+                            number_dead_heating,
+
+                        "combined_percentage":
+                            round(
+                                combined_percentage,
+                                6
+                            ),
+
+                        "each_percentage":
+                            round(
+                                payout_percentage,
+                                6
+                            ),
+                    }
+                )
+
+            payout_percentages.loc[
+                position_group.index
+            ] = payout_percentage
+
+    return payout_percentages
 
 
 # ============================================================
@@ -3165,6 +3452,7 @@ def calculate_historical_career_stats():
 
     required_columns = [
         "horse_id",
+        "race_id",
         "race_date",
         "race_number",
         "finishing_position",
@@ -3188,7 +3476,9 @@ def calculate_historical_career_stats():
     df[
         "_original_order"
     ] = range(
-        len(df)
+        len(
+            df
+        )
     )
 
     df[
@@ -3207,7 +3497,9 @@ def calculate_historical_career_stats():
             "race_number"
         ],
         errors="coerce"
-    ).fillna(0)
+    ).fillna(
+        0
+    )
 
     df[
         "_finish_numeric"
@@ -3225,7 +3517,9 @@ def calculate_historical_career_stats():
             "prize_money_hkd"
         ],
         errors="coerce"
-    ).fillna(0)
+    ).fillna(
+        0
+    )
 
     sort_columns = [
         "horse_id",
@@ -3245,7 +3539,9 @@ def calculate_historical_career_stats():
                 "race_index"
             ],
             errors="coerce"
-        ).fillna(0)
+        ).fillna(
+            0
+        )
 
         sort_columns.append(
             "_race_index_sort"
@@ -3267,24 +3563,33 @@ def calculate_historical_career_stats():
     ] = (
         df[
             "_finish_numeric"
-        ] == 1
-    ).astype(int)
+        ]
+        == 1
+    ).astype(
+        int
+    )
 
     df[
         "_is_second"
     ] = (
         df[
             "_finish_numeric"
-        ] == 2
-    ).astype(int)
+        ]
+        == 2
+    ).astype(
+        int
+    )
 
     df[
         "_is_third"
     ] = (
         df[
             "_finish_numeric"
-        ] == 3
-    ).astype(int)
+        ]
+        == 3
+    ).astype(
+        int
+    )
 
     df[
         "_is_top3"
@@ -3299,7 +3604,9 @@ def calculate_historical_career_stats():
                 3
             ]
         )
-    ).astype(int)
+    ).astype(
+        int
+    )
 
     df[
         "_is_start"
@@ -3308,26 +3615,20 @@ def calculate_historical_career_stats():
             "_finish_numeric"
         ]
         .notna()
-    ).astype(int)
+    ).astype(
+        int
+    )
 
     # --------------------------------------------------------
-    # PAYOUT %
+    # PAYOUT % INCLUDING DEAD HEATS
     # --------------------------------------------------------
 
     df[
         "prize_payout_percentage"
-    ] = df.apply(
-        lambda row:
-            get_prize_payout_percentage(
-                row[
-                    "_race_date_sort"
-                ],
-
-                row[
-                    "_finish_numeric"
-                ]
-            ),
-        axis=1
+    ] = (
+        calculate_dead_heat_payout_percentages(
+            df
+        )
     )
 
     # --------------------------------------------------------
@@ -3346,8 +3647,12 @@ def calculate_historical_career_stats():
                 "prize_payout_percentage"
             ],
             errors="coerce"
-        ).fillna(0)
-    ).round(2)
+        ).fillna(
+            0
+        )
+    ).round(
+        2
+    )
 
     grouped = df.groupby(
         "horse_id",
@@ -3430,7 +3735,9 @@ def calculate_historical_career_stats():
             "prize_money_won_this_race"
         ]
         .cumsum()
-    ).round(2)
+    ).round(
+        2
+    )
 
     df[
         "career_prize_money_before"
@@ -3442,7 +3749,9 @@ def calculate_historical_career_stats():
         df[
             "prize_money_won_this_race"
         ]
-    ).round(2)
+    ).round(
+        2
+    )
 
     # --------------------------------------------------------
     # CAREER RATES
@@ -3453,21 +3762,27 @@ def calculate_historical_career_stats():
             "career_starts_before"
         ],
         errors="coerce"
-    ).fillna(0)
+    ).fillna(
+        0
+    )
 
     wins = pd.to_numeric(
         df[
             "career_wins_before"
         ],
         errors="coerce"
-    ).fillna(0)
+    ).fillna(
+        0
+    )
 
     top3 = pd.to_numeric(
         df[
             "career_top3_before"
         ],
         errors="coerce"
-    ).fillna(0)
+    ).fillna(
+        0
+    )
 
     df[
         "career_win_rate_before"
@@ -3478,7 +3793,9 @@ def calculate_historical_career_stats():
     ] = 0.0
 
     has_starts = (
-        starts > 0
+        starts
+        >
+        0
     )
 
     df.loc[
@@ -3492,7 +3809,9 @@ def calculate_historical_career_stats():
         starts[
             has_starts
         ]
-    ).round(4)
+    ).round(
+        4
+    )
 
     df.loc[
         has_starts,
@@ -3505,7 +3824,9 @@ def calculate_historical_career_stats():
         starts[
             has_starts
         ]
-    ).round(4)
+    ).round(
+        4
+    )
 
     # --------------------------------------------------------
     # RESTORE ORIGINAL FILE ORDER
@@ -3542,7 +3863,9 @@ def calculate_historical_career_stats():
             df[
                 column
             ] = pd.Series(
-                [None] * len(df),
+                [None] * len(
+                    df
+                ),
                 index=df.index,
                 dtype="object"
             )
@@ -3557,8 +3880,8 @@ def calculate_historical_career_stats():
     )
 
     print(
-        "Historical career statistics "
-        "and prize money updated."
+        "Historical career statistics, "
+        "dead-heat payouts and prize money updated."
     )
 
 
@@ -3886,6 +4209,7 @@ def main():
 
     # --------------------------------------------------------
     # RECALCULATE EXISTING HISTORICAL STATS
+    # INCLUDING DEAD HEATS
     # --------------------------------------------------------
 
     calculate_historical_career_stats()
