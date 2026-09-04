@@ -22,15 +22,8 @@ HORSE_BASE_URL = (
     "https://racing.hkjc.com/en-us/local/information/horse"
 )
 
-START_DATE = os.getenv(
-    "START_DATE",
-    "2006-01-01"
-)
-
-END_DATE = os.getenv(
-    "END_DATE",
-    "2006-12-31"
-)
+START_DATE = os.getenv("START_DATE", "2006-01-01")
+END_DATE = os.getenv("END_DATE", "2006-12-31")
 
 DELAY_SECONDS = 2
 
@@ -171,16 +164,28 @@ session.headers.update({
 # ============================================================
 
 def ensure_folders():
-    os.makedirs(RACES_DIR, exist_ok=True)
-    os.makedirs(HORSES_DIR, exist_ok=True)
+    os.makedirs(
+        RACES_DIR,
+        exist_ok=True
+    )
+
+    os.makedirs(
+        HORSES_DIR,
+        exist_ok=True
+    )
 
 
-def date_range(start_date, end_date):
+def date_range(
+    start_date,
+    end_date
+):
     current = start_date
 
     while current <= end_date:
         yield current
-        current += timedelta(days=1)
+        current += timedelta(
+            days=1
+        )
 
 
 def clean_text(value):
@@ -218,7 +223,9 @@ def parse_integer(value):
     if value is None:
         return None
 
-    text = clean_text(value)
+    text = clean_text(
+        value
+    )
 
     match = re.search(
         r"-?\d+",
@@ -232,6 +239,7 @@ def parse_integer(value):
         return int(
             match.group()
         )
+
     except ValueError:
         return None
 
@@ -249,6 +257,7 @@ def parse_float(value):
 
     try:
         return float(text)
+
     except ValueError:
         return None
 
@@ -257,7 +266,9 @@ def parse_prize_money(value):
     if not value:
         return None
 
-    text = clean_text(value)
+    text = clean_text(
+        value
+    )
 
     match = re.search(
         r"HK\$\s*([\d,]+)",
@@ -271,8 +282,12 @@ def parse_prize_money(value):
     try:
         return int(
             match.group(1)
-            .replace(",", "")
+            .replace(
+                ",",
+                ""
+            )
         )
+
     except ValueError:
         return None
 
@@ -412,10 +427,11 @@ def infer_horse_birth_year(
     if scraped_date is None:
         return None
 
-    birthday_month, birthday_day = (
-        get_official_horse_birthday(
-            country_of_origin
-        )
+    (
+        birthday_month,
+        birthday_day
+    ) = get_official_horse_birthday(
+        country_of_origin
     )
 
     official_birthday_this_year = (
@@ -439,13 +455,11 @@ def infer_horse_birth_year(
             scraped_date.year
         )
 
-    birth_year = (
+    return (
         reference_birthday_year
         -
         age
     )
-
-    return birth_year
 
 
 def calculate_horse_age_at_race(
@@ -454,26 +468,31 @@ def calculate_horse_age_at_race(
     profile_scraped_at,
     race_date
 ):
-    birth_year = infer_horse_birth_year(
-        current_age,
-        country_of_origin,
-        profile_scraped_at
+    birth_year = (
+        infer_horse_birth_year(
+            current_age,
+            country_of_origin,
+            profile_scraped_at
+        )
     )
 
     if birth_year is None:
         return None
 
-    race_date_parsed = parse_date_only(
-        race_date
+    race_date_parsed = (
+        parse_date_only(
+            race_date
+        )
     )
 
     if race_date_parsed is None:
         return None
 
-    birthday_month, birthday_day = (
-        get_official_horse_birthday(
-            country_of_origin
-        )
+    (
+        birthday_month,
+        birthday_day
+    ) = get_official_horse_birthday(
+        country_of_origin
     )
 
     age_at_race = (
@@ -506,8 +525,10 @@ def build_url(
     racecourse=None,
     race_no=None
 ):
-    date_string = race_date.strftime(
-        "%Y/%m/%d"
+    date_string = (
+        race_date.strftime(
+            "%Y/%m/%d"
+        )
     )
 
     url = (
@@ -517,18 +538,22 @@ def build_url(
 
     if racecourse:
         url += (
-            f"&racecourse={racecourse}"
+            f"&racecourse="
+            f"{racecourse}"
         )
 
     if race_no:
         url += (
-            f"&RaceNo={race_no}"
+            f"&RaceNo="
+            f"{race_no}"
         )
 
     return url
 
 
-def build_horse_url(horse_id):
+def build_horse_url(
+    horse_id
+):
     return (
         f"{HORSE_BASE_URL}"
         f"?horseid={horse_id}"
@@ -558,7 +583,8 @@ def request_race_page(
 
         print(
             f"GET {url} "
-            f"-> {response.status_code}"
+            f"-> "
+            f"{response.status_code}"
         )
 
         response.raise_for_status()
@@ -574,7 +600,9 @@ def request_race_page(
         return None
 
 
-def request_horse_page(horse_id):
+def request_horse_page(
+    horse_id
+):
     url = build_horse_url(
         horse_id
     )
@@ -588,7 +616,8 @@ def request_horse_page(horse_id):
 
         print(
             f"HORSE {horse_id} "
-            f"-> {response.status_code}"
+            f"-> "
+            f"{response.status_code}"
         )
 
         response.raise_for_status()
@@ -675,7 +704,6 @@ def detect_race_numbers(html):
         "a",
         href=True
     ):
-
         href = link.get(
             "href",
             ""
@@ -711,7 +739,8 @@ def get_cell_texts(row):
                 strip=True
             )
         )
-        for cell in row.find_all(
+        for cell
+        in row.find_all(
             ["td", "th"]
         )
     ]
@@ -730,7 +759,9 @@ def extract_label_value(
         cells
     ):
 
-        if not pattern.search(cell):
+        if not pattern.search(
+            cell
+        ):
             continue
 
         same_cell = pattern.sub(
@@ -746,7 +777,9 @@ def extract_label_value(
             len(cells)
         ):
 
-            if cells[next_index]:
+            if cells[
+                next_index
+            ]:
                 return cells[
                     next_index
                 ]
@@ -834,8 +867,10 @@ def extract_race_metadata(
 
     if header is None:
         print(
-            "WARNING: race header not found"
+            "WARNING: race header "
+            "not found"
         )
+
         return metadata
 
     rows = header.find_all(
@@ -897,10 +932,12 @@ def extract_race_metadata(
                     .title()
                 )
 
-                distance_match = re.search(
-                    r"\b(\d{3,4})\s*M\b",
-                    cell,
-                    re.I
+                distance_match = (
+                    re.search(
+                        r"\b(\d{3,4})\s*M\b",
+                        cell,
+                        re.I
+                    )
                 )
 
                 if distance_match:
@@ -912,11 +949,13 @@ def extract_race_metadata(
                         .group(1)
                     )
 
-                rating_match = re.search(
-                    r"\(\s*(\d+)"
-                    r"\s*-\s*"
-                    r"(\d+)\s*\)",
-                    cell
+                rating_match = (
+                    re.search(
+                        r"\(\s*(\d+)"
+                        r"\s*-\s*"
+                        r"(\d+)\s*\)",
+                        cell
+                    )
                 )
 
                 if rating_match:
@@ -1074,7 +1113,9 @@ def extract_race_metadata(
         )
 
     course_upper = clean_text(
-        metadata["course"]
+        metadata[
+            "course"
+        ]
     ).upper()
 
     if "TURF" in course_upper:
@@ -1084,9 +1125,11 @@ def extract_race_metadata(
         ] = "TURF"
 
     elif (
-        "ALL WEATHER" in course_upper
+        "ALL WEATHER"
+        in course_upper
         or
-        "AWT" in course_upper
+        "AWT"
+        in course_upper
     ):
 
         metadata[
@@ -1097,23 +1140,50 @@ def extract_race_metadata(
         "PARSED RACE:",
         {
             "race_number":
-                metadata["race_number"],
+                metadata[
+                    "race_number"
+                ],
+
             "race_index":
-                metadata["race_index"],
+                metadata[
+                    "race_index"
+                ],
+
             "race_name":
-                metadata["race_name"],
+                metadata[
+                    "race_name"
+                ],
+
             "race_class":
-                metadata["race_class"],
+                metadata[
+                    "race_class"
+                ],
+
             "distance_m":
-                metadata["distance_m"],
+                metadata[
+                    "distance_m"
+                ],
+
             "rating_band":
-                metadata["rating_band"],
+                metadata[
+                    "rating_band"
+                ],
+
             "going":
-                metadata["going"],
+                metadata[
+                    "going"
+                ],
+
             "surface":
-                metadata["surface"],
+                metadata[
+                    "surface"
+                ],
+
             "course":
-                metadata["course"],
+                metadata[
+                    "course"
+                ],
+
             "prize_money_hkd":
                 metadata[
                     "prize_money_hkd"
@@ -1125,7 +1195,249 @@ def extract_race_metadata(
 
 
 # ============================================================
-# RACE RESULTS
+# RESULT TABLE HEADER MAPPING
+# ============================================================
+
+RESULT_HEADER_ALIASES = {
+    "finishing_position": {
+        "pla",
+        "place",
+        "placing",
+        "position",
+        "pos",
+    },
+
+    "horse_number": {
+        "horse no",
+        "horse number",
+        "horse num",
+    },
+
+    "horse": {
+        "horse",
+        "horse name",
+    },
+
+    "jockey": {
+        "jockey",
+    },
+
+    "trainer": {
+        "trainer",
+    },
+
+    "actual_weight": {
+        "act wt",
+        "actual wt",
+        "actual weight",
+    },
+
+    "declared_horse_weight": {
+        "declar horse wt",
+        "declared horse wt",
+        "declar horse weight",
+        "declared horse weight",
+    },
+
+    "draw": {
+        "dr",
+        "draw",
+    },
+
+    "margin": {
+        "lbw",
+        "margin",
+        "lengths behind winner",
+    },
+
+    "running_position": {
+        "running position",
+        "running pos",
+        "running positions",
+    },
+
+    "finish_time": {
+        "finish time",
+        "finishing time",
+    },
+
+    "odds": {
+        "win odds",
+        "winning odds",
+        "odds",
+    },
+}
+
+
+def normalise_result_header(
+    value
+):
+    text = clean_text(
+        value
+    ).lower()
+
+    text = text.replace(
+        "&",
+        " and "
+    )
+
+    text = re.sub(
+        r"[.()/\\_-]+",
+        " ",
+        text
+    )
+
+    text = re.sub(
+        r"[^a-z0-9 ]+",
+        " ",
+        text
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
+
+    return text.strip()
+
+
+def identify_result_header(
+    value
+):
+    normalised = (
+        normalise_result_header(
+            value
+        )
+    )
+
+    if not normalised:
+        return None
+
+    for (
+        canonical_name,
+        aliases
+    ) in (
+        RESULT_HEADER_ALIASES
+        .items()
+    ):
+
+        if normalised in aliases:
+            return canonical_name
+
+    return None
+
+
+def build_result_column_map(
+    table
+):
+    best_map = {}
+    best_score = 0
+
+    for row in table.find_all(
+        "tr"
+    ):
+
+        cells = row.find_all(
+            ["th", "td"]
+        )
+
+        if not cells:
+            continue
+
+        current_map = {}
+
+        for index, cell in enumerate(
+            cells
+        ):
+
+            heading = clean_text(
+                cell.get_text(
+                    " ",
+                    strip=True
+                )
+            )
+
+            canonical_name = (
+                identify_result_header(
+                    heading
+                )
+            )
+
+            if (
+                canonical_name
+                and
+                canonical_name
+                not in current_map
+            ):
+                current_map[
+                    canonical_name
+                ] = index
+
+        score = len(
+            current_map
+        )
+
+        if score > best_score:
+            best_score = score
+            best_map = current_map
+
+    # A genuine result header should match
+    # several expected columns.
+    if best_score < 5:
+        return {}
+
+    return best_map
+
+
+def get_result_cell(
+    cells,
+    column_map,
+    field_name
+):
+    index = column_map.get(
+        field_name
+    )
+
+    if index is None:
+        return None
+
+    if (
+        index < 0
+        or
+        index >= len(cells)
+    ):
+        return None
+
+    return cells[
+        index
+    ]
+
+
+def get_result_cell_text(
+    cells,
+    column_map,
+    field_name
+):
+    cell = get_result_cell(
+        cells,
+        column_map,
+        field_name
+    )
+
+    if cell is None:
+        return ""
+
+    return clean_text(
+        cell.get_text(
+            " ",
+            strip=True
+        )
+    )
+
+
+# ============================================================
+# RACE RESULTS - HEADER DRIVEN
 # ============================================================
 
 def extract_results(
@@ -1142,6 +1454,7 @@ def extract_results(
     )
 
     if table is None:
+
         table = soup.select_one(
             ".performance table"
         )
@@ -1149,65 +1462,214 @@ def extract_results(
     if table is None:
 
         print(
-            "WARNING: results table not found"
+            "WARNING: results table "
+            "not found"
         )
 
         return None
 
-    rows = table.select(
-        "tbody tr"
+    column_map = (
+        build_result_column_map(
+            table
+        )
     )
 
-    if not rows:
-        rows = table.find_all(
-            "tr"
+    if not column_map:
+
+        print(
+            "WARNING: could not detect "
+            "results-table headings"
         )
 
-    valid_rows = []
+        return None
 
-    for row in rows:
+    print(
+        "RESULT COLUMN MAP:",
+        column_map
+    )
+
+    core_fields = [
+        "finishing_position",
+        "horse_number",
+        "horse",
+        "jockey",
+        "trainer",
+        "actual_weight",
+        "declared_horse_weight",
+        "draw",
+        "margin",
+    ]
+
+    missing_core = [
+        field
+        for field
+        in core_fields
+        if field
+        not in column_map
+    ]
+
+    if missing_core:
+
+        print(
+            "WARNING: results table "
+            "is missing expected "
+            "headings:",
+            missing_core
+        )
+
+        return None
+
+    if (
+        "finish_time"
+        not in column_map
+    ):
+
+        print(
+            "WARNING: Finish Time "
+            "heading not found; "
+            "finish_time will be blank"
+        )
+
+    if (
+        "odds"
+        not in column_map
+    ):
+
+        print(
+            "WARNING: Win Odds "
+            "heading not found; "
+            "odds will be blank"
+        )
+
+    # Running Position is intentionally
+    # detected but ignored.
+    if (
+        "running_position"
+        in column_map
+    ):
+
+        print(
+            "Detected optional "
+            "Running Position column "
+            "at index",
+            column_map[
+                "running_position"
+            ],
+            "- ignored"
+        )
+
+    candidate_rows = []
+
+    for row in table.find_all(
+        "tr"
+    ):
 
         cells = row.find_all(
             "td"
         )
 
-        if len(cells) >= 10:
-            valid_rows.append(
-                row
+        if not cells:
+            continue
+
+        horse_cell = (
+            get_result_cell(
+                cells,
+                column_map,
+                "horse"
+            )
+        )
+
+        horse_number_text = (
+            get_result_cell_text(
+                cells,
+                column_map,
+                "horse_number"
+            )
+        )
+
+        horse_number = (
+            parse_integer(
+                horse_number_text
+            )
+        )
+
+        horse_link = None
+        horse_id = ""
+
+        if horse_cell is not None:
+
+            horse_link = (
+                horse_cell.find(
+                    "a",
+                    href=re.compile(
+                        r"horse",
+                        re.I
+                    )
+                )
             )
 
+        if horse_link is None:
+
+            horse_link = row.find(
+                "a",
+                href=re.compile(
+                    r"horse",
+                    re.I
+                )
+            )
+
+        if horse_link is not None:
+
+            horse_id = (
+                extract_horse_id(
+                    horse_link.get(
+                        "href",
+                        ""
+                    )
+                )
+            )
+
+        # Skip non-runner/table decoration
+        # rows that contain neither a horse
+        # ID nor horse number.
+        if (
+            not horse_id
+            and
+            horse_number is None
+        ):
+            continue
+
+        candidate_rows.append(
+            (
+                row,
+                cells,
+                horse_link,
+                horse_id,
+                horse_number
+            )
+        )
+
     field_size = len(
-        valid_rows
+        candidate_rows
     )
 
     results = []
 
-    for row in valid_rows:
+    for (
+        row,
+        cells,
+        horse_link,
+        horse_id,
+        horse_number
+    ) in candidate_rows:
 
-        cells = row.find_all(
-            "td"
-        )
-
-        horse_link = row.find(
-            "a",
-            href=re.compile(
-                r"horse",
-                re.I
-            )
-        )
-
-        horse_id = ""
         horse_url = ""
 
-        if horse_link:
+        if horse_link is not None:
 
             href = horse_link.get(
                 "href",
                 ""
-            )
-
-            horse_id = extract_horse_id(
-                href
             )
 
             horse_url = urljoin(
@@ -1215,21 +1677,15 @@ def extract_results(
                 href
             )
 
-        finishing_position = parse_integer(
-            cells[0].get_text(
-                " ",
-                strip=True
+        horse_cell = (
+            get_result_cell(
+                cells,
+                column_map,
+                "horse"
             )
         )
 
-        horse_number = parse_integer(
-            cells[1].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        if horse_link:
+        if horse_link is not None:
 
             horse_name = clean_text(
                 horse_link.get_text(
@@ -1238,74 +1694,99 @@ def extract_results(
                 )
             )
 
-        else:
+        elif horse_cell is not None:
 
             horse_name = clean_text(
-                cells[2].get_text(
+                horse_cell.get_text(
                     " ",
                     strip=True
                 )
             )
 
-        jockey = clean_text(
-            cells[3].get_text(
-                " ",
-                strip=True
-            )
-        )
+        else:
+            horse_name = ""
 
-        trainer = clean_text(
-            cells[4].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        actual_weight = parse_integer(
-            cells[5].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        declared_horse_weight = parse_integer(
-            cells[6].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        draw = parse_integer(
-            cells[7].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        margin = clean_text(
-            cells[8].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        finish_time = clean_text(
-            cells[9].get_text(
-                " ",
-                strip=True
-            )
-        )
-
-        odds = None
-
-        if len(cells) >= 11:
-
-            odds = parse_float(
-                cells[10].get_text(
-                    " ",
-                    strip=True
+        finishing_position = (
+            parse_integer(
+                get_result_cell_text(
+                    cells,
+                    column_map,
+                    "finishing_position"
                 )
             )
+        )
+
+        jockey = (
+            get_result_cell_text(
+                cells,
+                column_map,
+                "jockey"
+            )
+        )
+
+        trainer = (
+            get_result_cell_text(
+                cells,
+                column_map,
+                "trainer"
+            )
+        )
+
+        actual_weight = (
+            parse_integer(
+                get_result_cell_text(
+                    cells,
+                    column_map,
+                    "actual_weight"
+                )
+            )
+        )
+
+        declared_horse_weight = (
+            parse_integer(
+                get_result_cell_text(
+                    cells,
+                    column_map,
+                    "declared_horse_weight"
+                )
+            )
+        )
+
+        draw = (
+            parse_integer(
+                get_result_cell_text(
+                    cells,
+                    column_map,
+                    "draw"
+                )
+            )
+        )
+
+        margin = (
+            get_result_cell_text(
+                cells,
+                column_map,
+                "margin"
+            )
+        )
+
+        finish_time = (
+            get_result_cell_text(
+                cells,
+                column_map,
+                "finish_time"
+            )
+        )
+
+        odds = (
+            parse_float(
+                get_result_cell_text(
+                    cells,
+                    column_map,
+                    "odds"
+                )
+            )
+        )
 
         result_id = (
             f"{race_metadata['race_id']}_"
@@ -1470,7 +1951,9 @@ PROFILE_LABELS = [
 ]
 
 
-def normalise_profile_text(soup):
+def normalise_profile_text(
+    soup
+):
     return clean_text(
         soup.get_text(
             " ",
@@ -1485,14 +1968,16 @@ def extract_profile_value(
 ):
     other_labels = [
         item
-        for item in PROFILE_LABELS
+        for item
+        in PROFILE_LABELS
         if item.lower()
         != label.lower()
     ]
 
     stop_pattern = "|".join(
         re.escape(item)
-        for item in sorted(
+        for item
+        in sorted(
             other_labels,
             key=len,
             reverse=True
@@ -1529,9 +2014,11 @@ def extract_profile_value_any(
 ):
     for label in labels:
 
-        value = extract_profile_value(
-            text,
-            label
+        value = (
+            extract_profile_value(
+                text,
+                label
+            )
         )
 
         if value:
@@ -1551,13 +2038,16 @@ def extract_horse_profile(
         "html.parser"
     )
 
-    text = normalise_profile_text(
-        soup
+    text = (
+        normalise_profile_text(
+            soup
+        )
     )
 
     profile = {
         column: ""
-        for column in HORSE_COLUMNS
+        for column
+        in HORSE_COLUMNS
     }
 
     profile[
@@ -1598,7 +2088,6 @@ def extract_horse_profile(
             and
             len(name) <= 80
         ):
-
             profile[
                 "horse_name"
             ] = name
@@ -1610,22 +2099,25 @@ def extract_horse_profile(
         )
 
     # --------------------------------------------------------
-    # COUNTRY OF ORIGIN / CURRENT AGE
+    # COUNTRY / AGE
     # --------------------------------------------------------
 
-    origin_age = extract_profile_value_any(
-        text,
-        [
-            "Country of Origin / Age",
-            "Country of Origin",
-        ]
+    origin_age = (
+        extract_profile_value_any(
+            text,
+            [
+                "Country of Origin / Age",
+                "Country of Origin",
+            ]
+        )
     )
 
     if origin_age:
 
         parts = [
             clean_text(item)
-            for item in origin_age.split(
+            for item
+            in origin_age.split(
                 "/",
                 1
             )
@@ -1636,7 +2128,6 @@ def extract_horse_profile(
             and
             parts[0]
         ):
-
             profile[
                 "country_of_origin"
             ] = parts[0]
@@ -1654,7 +2145,7 @@ def extract_horse_profile(
                 ] = age
 
     # --------------------------------------------------------
-    # HEMISPHERE OF ORIGIN
+    # HEMISPHERE
     # --------------------------------------------------------
 
     profile[
@@ -1671,27 +2162,27 @@ def extract_horse_profile(
     # --------------------------------------------------------
     #
     # Deliberately not scraped.
+    # This is for manual population.
     #
-    # This field is intended to be populated manually.
-    # Because existing master data is merged when a horse
-    # is refreshed, manually entered foaled dates are
-    # preserved.
     # --------------------------------------------------------
 
     # --------------------------------------------------------
     # COLOUR / SEX
     # --------------------------------------------------------
 
-    colour_sex = extract_profile_value(
-        text,
-        "Colour / Sex"
+    colour_sex = (
+        extract_profile_value(
+            text,
+            "Colour / Sex"
+        )
     )
 
     if colour_sex:
 
         parts = [
             clean_text(item)
-            for item in colour_sex.split(
+            for item
+            in colour_sex.split(
                 "/",
                 1
             )
@@ -1761,7 +2252,8 @@ def extract_horse_profile(
 
     success = any(
         clean_text(item)
-        for item in useful_fields
+        for item
+        in useful_fields
         if item is not None
     )
 
@@ -1854,7 +2346,6 @@ def extract_horse_profile(
 
 def load_horse_master():
     horse_master = {}
-
     age_refresh_pending = set()
 
     if not os.path.exists(
@@ -1875,7 +2366,8 @@ def load_horse_master():
     except Exception as exc:
 
         print(
-            "Could not read horse master:",
+            "Could not read "
+            "horse master:",
             exc
         )
 
@@ -1886,8 +2378,7 @@ def load_horse_master():
 
     had_horse_age_column = (
         "horse_age"
-        in
-        df.columns
+        in df.columns
     )
 
     for column in HORSE_COLUMNS:
@@ -1911,16 +2402,15 @@ def load_horse_master():
             continue
 
         record = {
-            column: row.get(
-                column,
-                ""
-            )
+            column:
+                row.get(
+                    column,
+                    ""
+                )
             for column
             in HORSE_COLUMNS
         }
 
-        # Hemisphere can always be rebuilt from
-        # country of origin without another web request.
         record[
             "hemisphere_of_origin"
         ] = get_hemisphere_of_origin(
@@ -1960,8 +2450,9 @@ def save_horse_master(
     if not horse_master:
         return
 
-    # Recalculate hemisphere before every save.
-    for horse in horse_master.values():
+    for horse in (
+        horse_master.values()
+    ):
 
         horse[
             "hemisphere_of_origin"
@@ -1986,9 +2477,6 @@ def save_horse_master(
                 column
             ] = ""
 
-    # Selecting HORSE_COLUMNS also removes any old
-    # deleted columns such as import_type, import_date
-    # and owner.
     df = df[
         HORSE_COLUMNS
     ]
@@ -2058,7 +2546,9 @@ def ensure_horse_profiles(
         )
     )
 
-    for _, row in unique_horses.iterrows():
+    for _, row in (
+        unique_horses.iterrows()
+    ):
 
         horse_id = clean_text(
             row.get(
@@ -2077,14 +2567,15 @@ def ensure_horse_profiles(
         if not horse_id:
             continue
 
-        existing = horse_master.get(
-            horse_id
+        existing = (
+            horse_master.get(
+                horse_id
+            )
         )
 
         force_age_refresh = (
             horse_id
-            in
-            age_refresh_pending
+            in age_refresh_pending
         )
 
         if (
@@ -2106,7 +2597,8 @@ def ensure_horse_profiles(
         if force_age_refresh:
 
             print(
-                f"Refreshing horse for age: "
+                f"Refreshing horse "
+                f"for age: "
                 f"{horse_id} "
                 f"{horse_name}"
             )
@@ -2119,18 +2611,22 @@ def ensure_horse_profiles(
                 f"{horse_name}"
             )
 
-        response = request_horse_page(
-            horse_id
+        response = (
+            request_horse_page(
+                horse_id
+            )
         )
 
         if response is None:
             continue
 
-        profile = extract_horse_profile(
-            response.text,
-            horse_id,
-            response.url,
-            horse_name
+        profile = (
+            extract_horse_profile(
+                response.text,
+                horse_id,
+                response.url,
+                horse_name
+            )
         )
 
         if existing:
@@ -2139,21 +2635,23 @@ def ensure_horse_profiles(
                 existing
             )
 
-            for column in HORSE_COLUMNS:
+            for column in (
+                HORSE_COLUMNS
+            ):
 
-                new_value = profile.get(
-                    column,
-                    ""
+                new_value = (
+                    profile.get(
+                        column,
+                        ""
+                    )
                 )
 
-                if (
-                    column
-                    in {
-                        "profile_scraped",
-                        "profile_scraped_at",
-                        "profile_url",
-                    }
-                ):
+                if column in {
+                    "profile_scraped",
+                    "profile_scraped_at",
+                    "profile_url",
+                }:
+
                     merged_profile[
                         column
                     ] = new_value
@@ -2161,13 +2659,17 @@ def ensure_horse_profiles(
                 elif clean_text(
                     new_value
                 ):
+
                     merged_profile[
                         column
                     ] = new_value
 
-            profile = merged_profile
+            profile = (
+                merged_profile
+            )
 
-        # Always rebuild hemisphere from origin.
+        # Always rebuild hemisphere
+        # from origin.
         profile[
             "hemisphere_of_origin"
         ] = get_hemisphere_of_origin(
@@ -2292,7 +2794,9 @@ def enrich_results_with_horse_master(
             )
         )
 
-    for index, row in df.iterrows():
+    for index, row in (
+        df.iterrows()
+    ):
 
         horse_id = clean_text(
             row.get(
@@ -2304,8 +2808,10 @@ def enrich_results_with_horse_master(
         if not horse_id:
             continue
 
-        horse = horse_master.get(
-            horse_id
+        horse = (
+            horse_master.get(
+                horse_id
+            )
         )
 
         if not horse:
@@ -2323,7 +2829,9 @@ def enrich_results_with_horse_master(
         for (
             horse_column,
             result_column
-        ) in horse_to_result.items():
+        ) in (
+            horse_to_result.items()
+        ):
 
             df.at[
                 index,
@@ -2339,18 +2847,21 @@ def enrich_results_with_horse_master(
                     "horse_age",
                     ""
                 ),
+
                 country_of_origin=horse.get(
                     "country_of_origin",
                     ""
                 ),
+
                 profile_scraped_at=horse.get(
                     "profile_scraped_at",
                     ""
                 ),
+
                 race_date=row.get(
                     "race_date",
                     ""
-                ),
+                )
             )
         )
 
@@ -2394,7 +2905,10 @@ def backfill_existing_results(
     if df.empty:
         return
 
-    if "horse_id" not in df.columns:
+    if (
+        "horse_id"
+        not in df.columns
+    ):
         return
 
     print(
@@ -2404,9 +2918,11 @@ def backfill_existing_results(
         f"{len(df)} rows..."
     )
 
-    df = enrich_results_with_horse_master(
-        df,
-        horse_master
+    df = (
+        enrich_results_with_horse_master(
+            df,
+            horse_master
+        )
     )
 
     for column in RACE_COLUMNS:
@@ -2487,7 +3003,10 @@ def append_results(
 
     df = results_df.copy()
 
-    if "result_id" not in df.columns:
+    if (
+        "result_id"
+        not in df.columns
+    ):
         return
 
     df = df[
@@ -2524,8 +3043,10 @@ def append_results(
         RACE_COLUMNS
     ]
 
-    file_exists = os.path.exists(
-        RACE_RESULTS_FILE
+    file_exists = (
+        os.path.exists(
+            RACE_RESULTS_FILE
+        )
     )
 
     df.to_csv(
@@ -2544,7 +3065,8 @@ def append_results(
 
     print(
         f"Added {len(df)} "
-        f"new result rows to CSV."
+        f"new result rows "
+        f"to CSV."
     )
 
 
@@ -2556,7 +3078,9 @@ def get_prize_payout_percentage(
     race_date,
     finishing_position
 ):
-    if pd.isna(race_date):
+    if pd.isna(
+        race_date
+    ):
         return 0.0
 
     if pd.isna(
@@ -2565,16 +3089,22 @@ def get_prize_payout_percentage(
         return 0.0
 
     try:
+
         position = int(
             finishing_position
         )
+
     except (
         ValueError,
         TypeError
     ):
         return 0.0
 
-    if race_date < PAYOUT_MODEL_CUTOFF:
+    if (
+        race_date
+        <
+        PAYOUT_MODEL_CUTOFF
+    ):
 
         payout = {
             1: 0.56,
@@ -2642,7 +3172,9 @@ def calculate_historical_career_stats():
         "prize_money_hkd",
     ]
 
-    for column in required_columns:
+    for column in (
+        required_columns
+    ):
 
         if column not in df.columns:
             return
@@ -2650,7 +3182,8 @@ def calculate_historical_career_stats():
     print(
         f"Calculating historical "
         f"career and prize-money "
-        f"stats for {len(df)} rows..."
+        f"stats for "
+        f"{len(df)} rows..."
     )
 
     df[
@@ -2701,7 +3234,10 @@ def calculate_historical_career_stats():
         "_race_number_sort",
     ]
 
-    if "race_index" in df.columns:
+    if (
+        "race_index"
+        in df.columns
+    ):
 
         df[
             "_race_index_sort"
@@ -2756,8 +3292,13 @@ def calculate_historical_career_stats():
     ] = (
         df[
             "_finish_numeric"
-        ].isin(
-            [1, 2, 3]
+        ]
+        .isin(
+            [
+                1,
+                2,
+                3
+            ]
         )
     ).astype(int)
 
@@ -2782,6 +3323,7 @@ def calculate_historical_career_stats():
                 row[
                     "_race_date_sort"
                 ],
+
                 row[
                     "_finish_numeric"
                 ]
@@ -2936,7 +3478,9 @@ def calculate_historical_career_stats():
         "career_top3_rate_before"
     ] = 0.0
 
-    has_starts = starts > 0
+    has_starts = (
+        starts > 0
+    )
 
     df.loc[
         has_starts,
@@ -3028,6 +3572,7 @@ def save_daily_checkpoint(
     horse_master
 ):
     print()
+
     print(
         "=" * 70
     )
@@ -3068,6 +3613,7 @@ def process_date(
     age_refresh_pending
 ):
     print()
+
     print(
         "=" * 70
     )
@@ -3083,8 +3629,10 @@ def process_date(
         "=" * 70
     )
 
-    response = request_race_page(
-        meeting_date
+    response = (
+        request_race_page(
+            meeting_date
+        )
     )
 
     if response is None:
@@ -3119,8 +3667,10 @@ def process_date(
         racecourse_name
     )
 
-    race_numbers = detect_race_numbers(
-        response.text
+    race_numbers = (
+        detect_race_numbers(
+            response.text
+        )
     )
 
     if not race_numbers:
@@ -3138,13 +3688,10 @@ def process_date(
 
     completed_races = 0
 
-    # --------------------------------------------------------
-    # PROCESS EACH RACE
-    # --------------------------------------------------------
-
     for race_no in race_numbers:
 
         print()
+
         print(
             f"Processing Race "
             f"{race_no}"
@@ -3156,27 +3703,33 @@ def process_date(
             race_no
         )
 
-        race_response = request_race_page(
-            meeting_date,
-            racecourse_code,
-            race_no
+        race_response = (
+            request_race_page(
+                meeting_date,
+                racecourse_code,
+                race_no
+            )
         )
 
         if race_response is None:
             continue
 
-        metadata = extract_race_metadata(
-            race_response.text,
-            meeting_date,
-            racecourse_code,
-            racecourse_name,
-            race_no,
-            race_url
+        metadata = (
+            extract_race_metadata(
+                race_response.text,
+                meeting_date,
+                racecourse_code,
+                racecourse_name,
+                race_no,
+                race_url
+            )
         )
 
-        results_df = extract_results(
-            race_response.text,
-            metadata
+        results_df = (
+            extract_results(
+                race_response.text,
+                metadata
+            )
         )
 
         if results_df is None:
@@ -3204,7 +3757,7 @@ def process_date(
         )
 
         # ----------------------------------------------------
-        # STATIC HORSE DATA + AGE + HEMISPHERE
+        # HORSE DATA + HISTORICAL AGE
         # ----------------------------------------------------
 
         results_df = (
@@ -3215,7 +3768,7 @@ def process_date(
         )
 
         # ----------------------------------------------------
-        # SAVE RACE IMMEDIATELY
+        # SAVE RACE
         # ----------------------------------------------------
 
         append_results(
@@ -3226,20 +3779,19 @@ def process_date(
         completed_races += 1
 
         print(
-            f"Race {race_no} saved."
+            f"Race "
+            f"{race_no} "
+            f"saved."
         )
 
         time.sleep(
             DELAY_SECONDS
         )
 
-    # --------------------------------------------------------
-    # DAILY CHECKPOINT AFTER ALL RACES
-    # --------------------------------------------------------
-
     if completed_races > 0:
 
         print()
+
         print(
             f"Completed "
             f"{completed_races} races "
@@ -3286,7 +3838,11 @@ def main():
 
         return
 
-    if start_date > end_date:
+    if (
+        start_date
+        >
+        end_date
+    ):
 
         print(
             "START_DATE cannot "
@@ -3312,7 +3868,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # CLEAN / UPGRADE HORSE MASTER SCHEMA
+    # UPGRADE HORSE MASTER SCHEMA
     # --------------------------------------------------------
 
     if horse_master:
@@ -3322,7 +3878,7 @@ def main():
         )
 
     # --------------------------------------------------------
-    # UPGRADE EXISTING RESULTS SCHEMA
+    # UPGRADE / BACKFILL EXISTING RESULTS
     # --------------------------------------------------------
 
     backfill_existing_results(
@@ -3330,13 +3886,13 @@ def main():
     )
 
     # --------------------------------------------------------
-    # REBUILD EXISTING CAREER / PRIZE STATS
+    # RECALCULATE EXISTING HISTORICAL STATS
     # --------------------------------------------------------
 
     calculate_historical_career_stats()
 
     # --------------------------------------------------------
-    # LOAD DEDUPE IDS
+    # DEDUPE IDS
     # --------------------------------------------------------
 
     existing_result_ids = (
@@ -3344,6 +3900,7 @@ def main():
     )
 
     print()
+
     print(
         "HKJC Historical Results Collector"
     )
@@ -3384,9 +3941,11 @@ def main():
     # PROCESS DATE RANGE
     # --------------------------------------------------------
 
-    for meeting_date in date_range(
-        start_date,
-        end_date
+    for meeting_date in (
+        date_range(
+            start_date,
+            end_date
+        )
     ):
 
         try:
@@ -3401,6 +3960,7 @@ def main():
         except Exception as exc:
 
             print()
+
             print(
                 "ERROR while processing "
                 f"{meeting_date}:",
@@ -3408,7 +3968,8 @@ def main():
             )
 
             print(
-                "Performing emergency save..."
+                "Performing "
+                "emergency save..."
             )
 
             try:
@@ -3445,6 +4006,7 @@ def main():
     # --------------------------------------------------------
 
     print()
+
     print(
         "=" * 70
     )
@@ -3468,6 +4030,7 @@ def main():
     calculate_historical_career_stats()
 
     print()
+
     print(
         "Collection complete."
     )
@@ -3485,8 +4048,8 @@ def main():
     if age_refresh_pending:
 
         print(
-            "Horse profiles still awaiting "
-            "age refresh:",
+            "Horse profiles still "
+            "awaiting age refresh:",
             len(
                 age_refresh_pending
             )
