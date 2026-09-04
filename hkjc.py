@@ -54,29 +54,22 @@ PAYOUT_MODEL_CUTOFF = pd.Timestamp(
 
 
 # ============================================================
-# HORSE MASTER
-#
-# Only relatively static horse information.
+# HORSE MASTER COLUMNS
 # ============================================================
 
 HORSE_COLUMNS = [
     "horse_id",
     "horse_name",
     "brand_number",
-
     "country_of_origin",
     "horse_colour",
     "horse_sex",
-
     "import_type",
     "import_date",
-
     "owner",
-
     "sire",
     "dam",
     "dam_sire",
-
     "profile_url",
     "profile_scraped",
     "profile_scraped_at",
@@ -84,15 +77,13 @@ HORSE_COLUMNS = [
 
 
 # ============================================================
-# ALL RESULTS
+# ALL RESULTS COLUMNS
 # ============================================================
 
 RACE_COLUMNS = [
-    # IDs
     "result_id",
     "race_id",
 
-    # Race information
     "race_date",
     "racecourse_code",
     "racecourse_name",
@@ -108,12 +99,10 @@ RACE_COLUMNS = [
     "prize_money_hkd",
     "field_size",
 
-    # Horse identity
     "horse_id",
     "horse_number",
     "horse_name",
 
-    # Static horse master information
     "brand_number",
     "country_of_origin",
     "horse_colour",
@@ -125,7 +114,6 @@ RACE_COLUMNS = [
     "dam",
     "dam_sire",
 
-    # Historical career stats BEFORE this race
     "career_starts_before",
     "career_wins_before",
     "career_seconds_before",
@@ -134,13 +122,11 @@ RACE_COLUMNS = [
     "career_win_rate_before",
     "career_top3_rate_before",
 
-    # Prize calculations
     "prize_payout_percentage",
     "prize_money_won_this_race",
     "career_prize_money_before",
     "career_prize_money_after",
 
-    # Race result
     "finishing_position",
     "is_winner",
     "is_top_three",
@@ -155,7 +141,6 @@ RACE_COLUMNS = [
     "finish_time",
     "odds",
 
-    # URLs / audit
     "horse_profile_url",
     "horse_profile_scraped_at",
     "race_url",
@@ -187,21 +172,11 @@ session.headers.update({
 # ============================================================
 
 def ensure_folders():
-    os.makedirs(
-        RACES_DIR,
-        exist_ok=True
-    )
-
-    os.makedirs(
-        HORSES_DIR,
-        exist_ok=True
-    )
+    os.makedirs(RACES_DIR, exist_ok=True)
+    os.makedirs(HORSES_DIR, exist_ok=True)
 
 
-def date_range(
-    start_date,
-    end_date
-):
+def date_range(start_date, end_date):
     current = start_date
 
     while current <= end_date:
@@ -258,7 +233,6 @@ def parse_integer(value):
         return int(
             match.group()
         )
-
     except ValueError:
         return None
 
@@ -276,7 +250,6 @@ def parse_float(value):
 
     try:
         return float(text)
-
     except ValueError:
         return None
 
@@ -301,7 +274,6 @@ def parse_prize_money(value):
             match.group(1)
             .replace(",", "")
         )
-
     except ValueError:
         return None
 
@@ -355,9 +327,7 @@ def build_url(
     return url
 
 
-def build_horse_url(
-    horse_id
-):
+def build_horse_url(horse_id):
     return (
         f"{HORSE_BASE_URL}"
         f"?horseid={horse_id}"
@@ -403,9 +373,7 @@ def request_race_page(
         return None
 
 
-def request_horse_page(
-    horse_id
-):
+def request_horse_page(horse_id):
     url = build_horse_url(
         horse_id
     )
@@ -561,9 +529,7 @@ def extract_label_value(
         cells
     ):
 
-        if not pattern.search(
-            cell
-        ):
+        if not pattern.search(cell):
             continue
 
         same_cell = pattern.sub(
@@ -611,11 +577,10 @@ def extract_race_metadata(
             f"R{race_no:02d}"
         ),
 
-        "race_date": (
+        "race_date":
             meeting_date.strftime(
                 "%Y-%m-%d"
-            )
-        ),
+            ),
 
         "racecourse_code":
             racecourse_code,
@@ -670,7 +635,6 @@ def extract_race_metadata(
         print(
             "WARNING: race header not found"
         )
-
         return metadata
 
     rows = header.find_all(
@@ -683,10 +647,6 @@ def extract_race_metadata(
             strip=True
         )
     )
-
-    # --------------------------------------------------------
-    # Race number / index
-    # --------------------------------------------------------
 
     race_match = re.search(
         r"\bRACE\s+(\d+)\s*"
@@ -708,10 +668,6 @@ def extract_race_metadata(
         ] = int(
             race_match.group(2)
         )
-
-    # --------------------------------------------------------
-    # Parse rows
-    # --------------------------------------------------------
 
     for row in rows:
 
@@ -771,8 +727,6 @@ def extract_race_metadata(
                         f"{rating_match.group(2)}"
                     )
 
-        # Going
-
         going = extract_label_value(
             cells,
             "Going"
@@ -783,8 +737,6 @@ def extract_race_metadata(
                 "going"
             ] = going
 
-        # Course
-
         course = extract_label_value(
             cells,
             "Course"
@@ -794,8 +746,6 @@ def extract_race_metadata(
             metadata[
                 "course"
             ] = course
-
-        # Race name
 
         for index, cell in enumerate(
             cells
@@ -839,8 +789,6 @@ def extract_race_metadata(
 
                 break
 
-        # Prize
-
         for cell in cells:
 
             prize = parse_prize_money(
@@ -854,7 +802,7 @@ def extract_race_metadata(
                 ] = prize
 
     # --------------------------------------------------------
-    # Fallbacks
+    # FALLBACKS
     # --------------------------------------------------------
 
     if not metadata[
@@ -924,10 +872,6 @@ def extract_race_metadata(
             full_text
         )
 
-    # --------------------------------------------------------
-    # Surface
-    # --------------------------------------------------------
-
     course_upper = clean_text(
         metadata["course"]
     ).upper()
@@ -952,50 +896,23 @@ def extract_race_metadata(
         "PARSED RACE:",
         {
             "race_number":
-                metadata[
-                    "race_number"
-                ],
-
+                metadata["race_number"],
             "race_index":
-                metadata[
-                    "race_index"
-                ],
-
+                metadata["race_index"],
             "race_name":
-                metadata[
-                    "race_name"
-                ],
-
+                metadata["race_name"],
             "race_class":
-                metadata[
-                    "race_class"
-                ],
-
+                metadata["race_class"],
             "distance_m":
-                metadata[
-                    "distance_m"
-                ],
-
+                metadata["distance_m"],
             "rating_band":
-                metadata[
-                    "rating_band"
-                ],
-
+                metadata["rating_band"],
             "going":
-                metadata[
-                    "going"
-                ],
-
+                metadata["going"],
             "surface":
-                metadata[
-                    "surface"
-                ],
-
+                metadata["surface"],
             "course":
-                metadata[
-                    "course"
-                ],
-
+                metadata["course"],
             "prize_money_hkd":
                 metadata[
                     "prize_money_hkd"
@@ -1024,7 +941,6 @@ def extract_results(
     )
 
     if table is None:
-
         table = soup.select_one(
             ".performance table"
         )
@@ -1042,7 +958,6 @@ def extract_results(
     )
 
     if not rows:
-
         rows = table.find_all(
             "tr"
         )
@@ -1056,7 +971,6 @@ def extract_results(
         )
 
         if len(cells) >= 10:
-
             valid_rows.append(
                 row
             )
@@ -1339,7 +1253,7 @@ def extract_results(
 
 
 # ============================================================
-# HORSE PROFILE LABELS
+# HORSE PROFILE
 # ============================================================
 
 PROFILE_LABELS = [
@@ -1355,9 +1269,7 @@ PROFILE_LABELS = [
 ]
 
 
-def normalise_profile_text(
-    soup
-):
+def normalise_profile_text(soup):
     return clean_text(
         soup.get_text(
             " ",
@@ -1427,10 +1339,6 @@ def extract_profile_value_any(
     return ""
 
 
-# ============================================================
-# HORSE PROFILE PARSER
-# ============================================================
-
 def extract_horse_profile(
     html,
     horse_id,
@@ -1467,9 +1375,7 @@ def extract_horse_profile(
         "profile_scraped"
     ] = False
 
-    # --------------------------------------------------------
     # Horse name / brand
-    # --------------------------------------------------------
 
     heading_match = re.search(
         r"\b([A-Z][A-Z0-9 '&.\-]+?)"
@@ -1500,11 +1406,7 @@ def extract_horse_profile(
             heading_match.group(2)
         )
 
-    # --------------------------------------------------------
     # Country of origin
-    #
-    # Ignore age because age changes over time.
-    # --------------------------------------------------------
 
     origin_age = extract_profile_value_any(
         text,
@@ -1529,9 +1431,7 @@ def extract_horse_profile(
                 "country_of_origin"
             ] = parts[0]
 
-    # --------------------------------------------------------
     # Colour / sex
-    # --------------------------------------------------------
 
     colour_sex = extract_profile_value(
         text,
@@ -1559,10 +1459,6 @@ def extract_horse_profile(
             profile[
                 "horse_sex"
             ] = parts[1]
-
-    # --------------------------------------------------------
-    # Static fields
-    # --------------------------------------------------------
 
     profile[
         "import_type"
@@ -1605,10 +1501,6 @@ def extract_horse_profile(
         text,
         "Dam's Sire"
     )
-
-    # --------------------------------------------------------
-    # Success
-    # --------------------------------------------------------
 
     useful_fields = [
         profile.get(
@@ -1654,62 +1546,50 @@ def extract_horse_profile(
                 profile[
                     "horse_id"
                 ],
-
             "horse_name":
                 profile[
                     "horse_name"
                 ],
-
             "brand":
                 profile[
                     "brand_number"
                 ],
-
             "origin":
                 profile[
                     "country_of_origin"
                 ],
-
             "colour":
                 profile[
                     "horse_colour"
                 ],
-
             "sex":
                 profile[
                     "horse_sex"
                 ],
-
             "import_type":
                 profile[
                     "import_type"
                 ],
-
             "import_date":
                 profile[
                     "import_date"
                 ],
-
             "owner":
                 profile[
                     "owner"
                 ],
-
             "sire":
                 profile[
                     "sire"
                 ],
-
             "dam":
                 profile[
                     "dam"
                 ],
-
             "dam_sire":
                 profile[
                     "dam_sire"
                 ],
-
             "success":
                 profile[
                     "profile_scraped"
@@ -1721,7 +1601,7 @@ def extract_horse_profile(
 
 
 # ============================================================
-# LOAD HORSE MASTER
+# LOAD / SAVE HORSE MASTER
 # ============================================================
 
 def load_horse_master():
@@ -1730,7 +1610,6 @@ def load_horse_master():
     if not os.path.exists(
         HORSE_MASTER_FILE
     ):
-
         return horse_master
 
     try:
@@ -1776,15 +1655,12 @@ def load_horse_master():
                 column,
                 ""
             )
-            for column in HORSE_COLUMNS
+            for column
+            in HORSE_COLUMNS
         }
 
     return horse_master
 
-
-# ============================================================
-# SAVE HORSE MASTER
-# ============================================================
 
 def save_horse_master(
     horse_master
@@ -1829,10 +1705,6 @@ def save_horse_master(
     )
 
 
-# ============================================================
-# PROFILE ALREADY SCRAPED?
-# ============================================================
-
 def horse_profile_is_scraped(
     horse
 ):
@@ -1854,7 +1726,7 @@ def horse_profile_is_scraped(
 
 
 # ============================================================
-# ENSURE HORSE PROFILE EXISTS
+# ENSURE HORSE PROFILE
 # ============================================================
 
 def ensure_horse_profiles(
@@ -1901,10 +1773,6 @@ def ensure_horse_profiles(
             horse_id
         )
 
-        # ----------------------------------------------------
-        # Reuse horse master
-        # ----------------------------------------------------
-
         if horse_profile_is_scraped(
             existing
         ):
@@ -1916,10 +1784,6 @@ def ensure_horse_profiles(
             )
 
             continue
-
-        # ----------------------------------------------------
-        # Scrape only new / incomplete horses
-        # ----------------------------------------------------
 
         print(
             f"Scraping horse: "
@@ -1945,8 +1809,7 @@ def ensure_horse_profiles(
             horse_id
         ] = profile
 
-        # Save immediately for resumability
-
+        # Immediate checkpoint after each new horse
         save_horse_master(
             horse_master
         )
@@ -2102,12 +1965,6 @@ def backfill_existing_results(
         return
 
     if "horse_id" not in df.columns:
-
-        print(
-            "Existing results does "
-            "not contain horse_id."
-        )
-
         return
 
     print(
@@ -2148,14 +2005,13 @@ def backfill_existing_results(
 
 
 # ============================================================
-# LOAD EXISTING RESULT IDS
+# EXISTING RESULT IDS
 # ============================================================
 
 def load_existing_result_ids():
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
-
         return set()
 
     try:
@@ -2188,7 +2044,7 @@ def load_existing_result_ids():
 
 
 # ============================================================
-# APPEND RESULTS
+# APPEND EACH RACE IMMEDIATELY
 # ============================================================
 
 def append_results(
@@ -2257,12 +2113,12 @@ def append_results(
 
     print(
         f"Added {len(df)} "
-        f"new result rows."
+        f"new result rows to CSV."
     )
 
 
 # ============================================================
-# PAYOUT PERCENTAGE
+# PRIZE PAYOUT MODEL
 # ============================================================
 
 def get_prize_payout_percentage(
@@ -2272,25 +2128,22 @@ def get_prize_payout_percentage(
     if pd.isna(race_date):
         return 0.0
 
-    if pd.isna(finishing_position):
+    if pd.isna(
+        finishing_position
+    ):
         return 0.0
 
     try:
         position = int(
             finishing_position
         )
-
     except (
         ValueError,
         TypeError
     ):
         return 0.0
 
-    # --------------------------------------------------------
-    # HISTORICAL MODEL
-    # Before 10 September 2023
-    # --------------------------------------------------------
-
+    # Historical: before 2023-09-10
     if race_date < PAYOUT_MODEL_CUTOFF:
 
         payout = {
@@ -2306,11 +2159,7 @@ def get_prize_payout_percentage(
             0.0
         )
 
-    # --------------------------------------------------------
-    # PRESENT-DAY MODEL
-    # 10 September 2023 onwards
-    # --------------------------------------------------------
-
+    # Current: 2023-09-10 onward
     payout = {
         1: 0.56,
         2: 0.21,
@@ -2327,10 +2176,7 @@ def get_prize_payout_percentage(
 
 
 # ============================================================
-# HISTORICAL CAREER + PRIZE STATS
-#
-# All "before" fields represent information available
-# BEFORE the race on that row.
+# CALCULATE HISTORICAL CAREER + PRIZE STATS
 # ============================================================
 
 def calculate_historical_career_stats():
@@ -2370,34 +2216,19 @@ def calculate_historical_career_stats():
     for column in required_columns:
 
         if column not in df.columns:
-
-            print(
-                "Career stats cannot "
-                f"be calculated. Missing: "
-                f"{column}"
-            )
-
             return
 
     print(
-        f"Calculating historical career "
-        f"and prize-money stats for "
-        f"{len(df)} rows..."
+        f"Calculating historical "
+        f"career and prize-money "
+        f"stats for {len(df)} rows..."
     )
-
-    # --------------------------------------------------------
-    # Preserve current CSV order
-    # --------------------------------------------------------
 
     df[
         "_original_order"
     ] = range(
         len(df)
     )
-
-    # --------------------------------------------------------
-    # Parse values
-    # --------------------------------------------------------
 
     df[
         "_race_date_sort"
@@ -2435,10 +2266,6 @@ def calculate_historical_career_stats():
         errors="coerce"
     ).fillna(0)
 
-    # --------------------------------------------------------
-    # Chronological ordering
-    # --------------------------------------------------------
-
     sort_columns = [
         "horse_id",
         "_race_date_sort",
@@ -2468,7 +2295,7 @@ def calculate_historical_career_stats():
     )
 
     # --------------------------------------------------------
-    # Result indicators
+    # RESULT INDICATORS
     # --------------------------------------------------------
 
     df[
@@ -2500,8 +2327,7 @@ def calculate_historical_career_stats():
     ] = (
         df[
             "_finish_numeric"
-        ]
-        .isin(
+        ].isin(
             [1, 2, 3]
         )
     ).astype(int)
@@ -2516,7 +2342,7 @@ def calculate_historical_career_stats():
     ).astype(int)
 
     # --------------------------------------------------------
-    # Prize percentage for each race
+    # PAYOUT %
     # --------------------------------------------------------
 
     df[
@@ -2535,7 +2361,7 @@ def calculate_historical_career_stats():
     )
 
     # --------------------------------------------------------
-    # Prize money won this race
+    # PRIZE WON THIS RACE
     # --------------------------------------------------------
 
     df[
@@ -2553,10 +2379,6 @@ def calculate_historical_career_stats():
         ).fillna(0)
     ).round(2)
 
-    # --------------------------------------------------------
-    # Group by horse
-    # --------------------------------------------------------
-
     grouped = df.groupby(
         "horse_id",
         sort=False,
@@ -2564,7 +2386,7 @@ def calculate_historical_career_stats():
     )
 
     # --------------------------------------------------------
-    # Career starts before
+    # CAREER BEFORE THIS RACE
     # --------------------------------------------------------
 
     df[
@@ -2572,76 +2394,55 @@ def calculate_historical_career_stats():
     ] = (
         grouped[
             "_is_start"
-        ]
-        .cumsum()
+        ].cumsum()
         -
         df[
             "_is_start"
         ]
     )
 
-    # --------------------------------------------------------
-    # Wins before
-    # --------------------------------------------------------
-
     df[
         "career_wins_before"
     ] = (
         grouped[
             "_is_win"
-        ]
-        .cumsum()
+        ].cumsum()
         -
         df[
             "_is_win"
         ]
     )
-
-    # --------------------------------------------------------
-    # Seconds before
-    # --------------------------------------------------------
 
     df[
         "career_seconds_before"
     ] = (
         grouped[
             "_is_second"
-        ]
-        .cumsum()
+        ].cumsum()
         -
         df[
             "_is_second"
         ]
     )
 
-    # --------------------------------------------------------
-    # Thirds before
-    # --------------------------------------------------------
-
     df[
         "career_thirds_before"
     ] = (
         grouped[
             "_is_third"
-        ]
-        .cumsum()
+        ].cumsum()
         -
         df[
             "_is_third"
         ]
     )
-
-    # --------------------------------------------------------
-    # Top 3 before
-    # --------------------------------------------------------
 
     df[
         "career_top3_before"
     ] = (
         grouped[
             "_is_top3"
-        ]
-        .cumsum()
+        ].cumsum()
         -
         df[
             "_is_top3"
@@ -2649,7 +2450,7 @@ def calculate_historical_career_stats():
     )
 
     # --------------------------------------------------------
-    # Prize money after current race
+    # CUMULATIVE PRIZE MONEY
     # --------------------------------------------------------
 
     df[
@@ -2660,10 +2461,6 @@ def calculate_historical_career_stats():
         ]
         .cumsum()
     ).round(2)
-
-    # --------------------------------------------------------
-    # Prize money before current race
-    # --------------------------------------------------------
 
     df[
         "career_prize_money_before"
@@ -2678,7 +2475,7 @@ def calculate_historical_career_stats():
     ).round(2)
 
     # --------------------------------------------------------
-    # Career rates BEFORE race
+    # CAREER RATES
     # --------------------------------------------------------
 
     starts = pd.to_numeric(
@@ -2710,9 +2507,7 @@ def calculate_historical_career_stats():
         "career_top3_rate_before"
     ] = 0.0
 
-    has_starts = (
-        starts > 0
-    )
+    has_starts = starts > 0
 
     df.loc[
         has_starts,
@@ -2741,17 +2536,13 @@ def calculate_historical_career_stats():
     ).round(4)
 
     # --------------------------------------------------------
-    # Restore original CSV order
+    # RESTORE ORIGINAL FILE ORDER
     # --------------------------------------------------------
 
     df = df.sort_values(
         "_original_order",
         kind="stable"
     )
-
-    # --------------------------------------------------------
-    # Drop helper fields
-    # --------------------------------------------------------
 
     temporary_columns = [
         "_original_order",
@@ -2771,10 +2562,6 @@ def calculate_historical_career_stats():
         columns=temporary_columns,
         errors="ignore"
     )
-
-    # --------------------------------------------------------
-    # Enforce final schema
-    # --------------------------------------------------------
 
     for column in RACE_COLUMNS:
 
@@ -2800,6 +2587,47 @@ def calculate_historical_career_stats():
     print(
         "Historical career statistics "
         "and prize money updated."
+    )
+
+
+# ============================================================
+# DAILY CHECKPOINT
+# ============================================================
+
+def save_daily_checkpoint(
+    meeting_date,
+    horse_master
+):
+    print()
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"DAILY CHECKPOINT: "
+        f"{meeting_date.strftime('%Y-%m-%d')}"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    # Save newly scraped horses
+    save_horse_master(
+        horse_master
+    )
+
+    # Refresh static horse fields
+    backfill_existing_results(
+        horse_master
+    )
+
+    # Recalculate point-in-time historical stats
+    calculate_historical_career_stats()
+
+    print(
+        f"Checkpoint complete: "
+        f"{meeting_date.strftime('%Y-%m-%d')}"
     )
 
 
@@ -2881,6 +2709,12 @@ def process_date(
         race_numbers
     )
 
+    completed_races = 0
+
+    # --------------------------------------------------------
+    # PROCESS EACH RACE
+    # --------------------------------------------------------
+
     for race_no in race_numbers:
 
         print()
@@ -2933,7 +2767,7 @@ def process_date(
         )
 
         # ----------------------------------------------------
-        # 1. Scrape only new horse profiles
+        # HORSE PROFILE
         # ----------------------------------------------------
 
         ensure_horse_profiles(
@@ -2942,16 +2776,18 @@ def process_date(
         )
 
         # ----------------------------------------------------
-        # 2. Enrich from horse master
+        # STATIC HORSE DATA ON RESULT ROW
         # ----------------------------------------------------
 
-        results_df = enrich_results_with_horse_master(
-            results_df,
-            horse_master
+        results_df = (
+            enrich_results_with_horse_master(
+                results_df,
+                horse_master
+            )
         )
 
         # ----------------------------------------------------
-        # 3. Append race rows
+        # SAVE RACE IMMEDIATELY
         # ----------------------------------------------------
 
         append_results(
@@ -2959,8 +2795,33 @@ def process_date(
             existing_result_ids
         )
 
+        completed_races += 1
+
+        print(
+            f"Race {race_no} saved."
+        )
+
         time.sleep(
             DELAY_SECONDS
+        )
+
+    # --------------------------------------------------------
+    # DAILY CHECKPOINT AFTER ALL RACES
+    # --------------------------------------------------------
+
+    if completed_races > 0:
+
+        print()
+        print(
+            f"Completed "
+            f"{completed_races} races "
+            f"for "
+            f"{meeting_date.strftime('%Y-%m-%d')}"
+        )
+
+        save_daily_checkpoint(
+            meeting_date,
+            horse_master
         )
 
 
@@ -3007,10 +2868,12 @@ def main():
         return
 
     # --------------------------------------------------------
-    # Load horse master
+    # LOAD HORSE MASTER
     # --------------------------------------------------------
 
-    horse_master = load_horse_master()
+    horse_master = (
+        load_horse_master()
+    )
 
     print(
         "Horse master records:",
@@ -3020,7 +2883,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Rewrite horse master to current clean schema
+    # CLEAN / UPGRADE HORSE MASTER SCHEMA
     # --------------------------------------------------------
 
     if horse_master:
@@ -3030,7 +2893,7 @@ def main():
         )
 
     # --------------------------------------------------------
-    # Backfill old result rows
+    # UPGRADE EXISTING RESULTS SCHEMA
     # --------------------------------------------------------
 
     backfill_existing_results(
@@ -3038,13 +2901,13 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Recalculate any existing historical stats
+    # REBUILD EXISTING CAREER / PRIZE STATS
     # --------------------------------------------------------
 
     calculate_historical_career_stats()
 
     # --------------------------------------------------------
-    # Existing result IDs
+    # LOAD DEDUPE IDS
     # --------------------------------------------------------
 
     existing_result_ids = (
@@ -3081,7 +2944,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Process dates
+    # PROCESS DATE RANGE
     # --------------------------------------------------------
 
     for meeting_date in date_range(
@@ -3089,35 +2952,90 @@ def main():
         end_date
     ):
 
-        process_date(
-            meeting_date,
-            existing_result_ids,
-            horse_master
-        )
+        try:
+
+            process_date(
+                meeting_date,
+                existing_result_ids,
+                horse_master
+            )
+
+        except Exception as exc:
+
+            # ------------------------------------------------
+            # EMERGENCY SAVE
+            #
+            # If a meeting crashes unexpectedly,
+            # preserve everything already written.
+            # ------------------------------------------------
+
+            print()
+            print(
+                "ERROR while processing "
+                f"{meeting_date}:",
+                exc
+            )
+
+            print(
+                "Performing emergency save..."
+            )
+
+            try:
+
+                save_horse_master(
+                    horse_master
+                )
+
+                backfill_existing_results(
+                    horse_master
+                )
+
+                calculate_historical_career_stats()
+
+                print(
+                    "Emergency save complete."
+                )
+
+            except Exception as save_exc:
+
+                print(
+                    "Emergency save failed:",
+                    save_exc
+                )
+
+            # Continue to next date instead of
+            # killing the entire job.
+
+            continue
 
         time.sleep(
             DELAY_SECONDS
         )
 
     # --------------------------------------------------------
-    # Save master
+    # FINAL SAVE
     # --------------------------------------------------------
+
+    print()
+    print(
+        "=" * 70
+    )
+
+    print(
+        "FINAL SAVE"
+    )
+
+    print(
+        "=" * 70
+    )
 
     save_horse_master(
         horse_master
     )
 
-    # --------------------------------------------------------
-    # Final backfill of static horse data
-    # --------------------------------------------------------
-
     backfill_existing_results(
         horse_master
     )
-
-    # --------------------------------------------------------
-    # Final historical career + prize recalculation
-    # --------------------------------------------------------
 
     calculate_historical_career_stats()
 
