@@ -1,0 +1,56 @@
+name: HKJC Results Collector
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date YYYY-MM-DD"
+        required: true
+        default: "2006-12-01"
+
+      end_date:
+        description: "End date YYYY-MM-DD"
+        required: true
+        default: "2006-12-31"
+
+  schedule:
+    - cron: "27 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run collector
+        env:
+          START_DATE: ${{ github.event.inputs.start_date || '2006-12-01' }}
+          END_DATE: ${{ github.event.inputs.end_date || '2006-12-31' }}
+        run: |
+          python hkjc.py
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add results/
+
+          git diff --cached --quiet || git commit -m "Update HKJC results"
+
+          git push
