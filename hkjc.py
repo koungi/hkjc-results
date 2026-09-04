@@ -62,7 +62,9 @@ HORSE_COLUMNS = [
     "horse_name",
     "brand_number",
     "country_of_origin",
+    "hemisphere_of_origin",
     "horse_age",
+    "foaled_date",
     "horse_colour",
     "horse_sex",
     "sire",
@@ -103,6 +105,7 @@ RACE_COLUMNS = [
 
     "brand_number",
     "country_of_origin",
+    "hemisphere_of_origin",
     "horse_age_at_race",
     "horse_colour",
     "horse_sex",
@@ -293,34 +296,62 @@ def extract_horse_id(href):
 
 
 # ============================================================
-# HORSE AGE HELPERS
+# HORSE HEMISPHERE + AGE HELPERS
 # ============================================================
 
 SOUTHERN_HEMISPHERE_ORIGINS = {
     "AUS",
-    "AUSTRALIA",
-
     "NZ",
-    "NEW ZEALAND",
-
     "SAF",
-    "RSA",
-    "ZA",
-    "SOUTH AFRICA",
+    "ARG",
+    "ZIM",
+    "BRZ",
+    "CHI",
+}
+
+NORTHERN_HEMISPHERE_ORIGINS = {
+    "IRE",
+    "GB",
+    "USA",
+    "FR",
+    "JPN",
+    "CAN",
+    "GER",
 }
 
 
-def is_southern_hemisphere_horse(
+def get_hemisphere_of_origin(
     country_of_origin
 ):
     country = clean_text(
         country_of_origin
     ).upper()
 
-    return (
+    if (
         country
         in
         SOUTHERN_HEMISPHERE_ORIGINS
+    ):
+        return "Southern"
+
+    if (
+        country
+        in
+        NORTHERN_HEMISPHERE_ORIGINS
+    ):
+        return "Northern"
+
+    return "Other"
+
+
+def is_southern_hemisphere_horse(
+    country_of_origin
+):
+    return (
+        get_hemisphere_of_origin(
+            country_of_origin
+        )
+        == "Southern"
     )
 
 
@@ -330,12 +361,11 @@ def get_official_horse_birthday(
     if is_southern_hemisphere_horse(
         country_of_origin
     ):
-        # Australia, New Zealand,
-        # South Africa:
+        # Southern Hemisphere:
         # official birthday = 1 August
         return 8, 1
 
-    # Northern Hemisphere / all others:
+    # Northern / Other:
     # official birthday = 1 January
     return 1, 1
 
@@ -368,22 +398,6 @@ def infer_horse_birth_year(
     country_of_origin,
     profile_scraped_at
 ):
-    """
-    Infer the official racing birth year from the
-    horse's current HKJC age.
-
-    Example:
-        NZ horse
-        age = 6
-        scraped = 2026-09-04
-
-        Most recent official birthday:
-        2026-08-01
-
-        Birth year:
-        2026 - 6 = 2020
-    """
-
     age = parse_integer(
         current_age
     )
@@ -440,17 +454,6 @@ def calculate_horse_age_at_race(
     profile_scraped_at,
     race_date
 ):
-    """
-    Calculate the horse's official age on
-    a historical race date.
-
-    Southern Hemisphere horses:
-        birthday = 1 August
-
-    All other horses:
-        birthday = 1 January
-    """
-
     birth_year = infer_horse_birth_year(
         current_age,
         country_of_origin,
@@ -479,8 +482,6 @@ def calculate_horse_age_at_race(
         birth_year
     )
 
-    # If the official birthday had not yet
-    # occurred in that race year, subtract one.
     if (
         race_date_parsed.month,
         race_date_parsed.day
@@ -490,7 +491,6 @@ def calculate_horse_age_at_race(
     ):
         age_at_race -= 1
 
-    # Prevent impossible negative ages.
     if age_at_race < 0:
         return None
 
@@ -1457,14 +1457,6 @@ def extract_results(
 # HORSE PROFILE
 # ============================================================
 
-# Import Type, Import Date and Owner are deliberately
-# retained as LABEL BOUNDARIES only.
-#
-# Their values are NOT extracted or stored.
-#
-# Keeping the labels here prevents neighbouring fields
-# such as Sire or Colour from swallowing unwanted text.
-
 PROFILE_LABELS = [
     "Country of Origin / Age",
     "Country of Origin",
@@ -1639,7 +1631,6 @@ def extract_horse_profile(
             )
         ]
 
-        # Country
         if (
             parts
             and
@@ -1650,10 +1641,6 @@ def extract_horse_profile(
                 "country_of_origin"
             ] = parts[0]
 
-        # Current age
-        #
-        # Only populate when an age is actually
-        # present on the page.
         if len(parts) >= 2:
 
             age = parse_integer(
@@ -1665,6 +1652,31 @@ def extract_horse_profile(
                 profile[
                     "horse_age"
                 ] = age
+
+    # --------------------------------------------------------
+    # HEMISPHERE OF ORIGIN
+    # --------------------------------------------------------
+
+    profile[
+        "hemisphere_of_origin"
+    ] = get_hemisphere_of_origin(
+        profile.get(
+            "country_of_origin",
+            ""
+        )
+    )
+
+    # --------------------------------------------------------
+    # FOALED DATE
+    # --------------------------------------------------------
+    #
+    # Deliberately not scraped.
+    #
+    # This field is intended to be populated manually.
+    # Because existing master data is merged when a horse
+    # is refreshed, manually entered foaled dates are
+    # preserved.
+    # --------------------------------------------------------
 
     # --------------------------------------------------------
     # COLOUR / SEX
@@ -1786,9 +1798,19 @@ def extract_horse_profile(
                     "country_of_origin"
                 ],
 
+            "hemisphere":
+                profile[
+                    "hemisphere_of_origin"
+                ],
+
             "age":
                 profile[
                     "horse_age"
+                ],
+
+            "foaled_date":
+                profile[
+                    "foaled_date"
                 ],
 
             "colour":
@@ -1833,11 +1855,6 @@ def extract_horse_profile(
 def load_horse_master():
     horse_master = {}
 
-    # Horses in this set were loaded from an old
-    # horse_master.csv that did not yet contain
-    # the new horse_age column.
-    #
-    # They will be re-scraped once when encountered.
     age_refresh_pending = set()
 
     if not os.path.exists(
@@ -1867,7 +1884,6 @@ def load_horse_master():
             age_refresh_pending
         )
 
-    # Detect whether this is an old schema.
     had_horse_age_column = (
         "horse_age"
         in
@@ -1894,9 +1910,7 @@ def load_horse_master():
         if not horse_id:
             continue
 
-        horse_master[
-            horse_id
-        ] = {
+        record = {
             column: row.get(
                 column,
                 ""
@@ -1904,6 +1918,21 @@ def load_horse_master():
             for column
             in HORSE_COLUMNS
         }
+
+        # Hemisphere can always be rebuilt from
+        # country of origin without another web request.
+        record[
+            "hemisphere_of_origin"
+        ] = get_hemisphere_of_origin(
+            record.get(
+                "country_of_origin",
+                ""
+            )
+        )
+
+        horse_master[
+            horse_id
+        ] = record
 
         if not had_horse_age_column:
 
@@ -1931,6 +1960,18 @@ def save_horse_master(
     if not horse_master:
         return
 
+    # Recalculate hemisphere before every save.
+    for horse in horse_master.values():
+
+        horse[
+            "hemisphere_of_origin"
+        ] = get_hemisphere_of_origin(
+            horse.get(
+                "country_of_origin",
+                ""
+            )
+        )
+
     df = pd.DataFrame(
         list(
             horse_master.values()
@@ -1945,11 +1986,9 @@ def save_horse_master(
                 column
             ] = ""
 
-    # IMPORTANT:
-    #
-    # Selecting only HORSE_COLUMNS means any old
-    # columns such as import_type, import_date or
-    # owner are physically removed from the CSV.
+    # Selecting HORSE_COLUMNS also removes any old
+    # deleted columns such as import_type, import_date
+    # and owner.
     df = df[
         HORSE_COLUMNS
     ]
@@ -2085,8 +2124,6 @@ def ensure_horse_profiles(
         )
 
         if response is None:
-            # Leave it pending so another race can
-            # retry later during this run.
             continue
 
         profile = extract_horse_profile(
@@ -2096,9 +2133,6 @@ def ensure_horse_profiles(
             horse_name
         )
 
-        # If this was a refresh of an existing horse,
-        # preserve any previously valid fields when the
-        # newly scraped page happens to return blanks.
         if existing:
 
             merged_profile = dict(
@@ -2133,17 +2167,24 @@ def ensure_horse_profiles(
 
             profile = merged_profile
 
+        # Always rebuild hemisphere from origin.
+        profile[
+            "hemisphere_of_origin"
+        ] = get_hemisphere_of_origin(
+            profile.get(
+                "country_of_origin",
+                ""
+            )
+        )
+
         horse_master[
             horse_id
         ] = profile
 
-        # The profile has now been checked using
-        # the new age-aware parser.
         age_refresh_pending.discard(
             horse_id
         )
 
-        # Immediate checkpoint after each new horse
         save_horse_master(
             horse_master
         )
@@ -2166,18 +2207,15 @@ def enrich_results_with_horse_master(
 
     df = results_df.copy()
 
-    # Static horse data copied directly from master.
-    #
-    # Note that horse_age is intentionally NOT copied
-    # directly into results because results require the
-    # historical age on the race date.
-
     horse_to_result = {
         "brand_number":
             "brand_number",
 
         "country_of_origin":
             "country_of_origin",
+
+        "hemisphere_of_origin":
+            "hemisphere_of_origin",
 
         "horse_colour":
             "horse_colour",
@@ -2228,7 +2266,6 @@ def enrich_results_with_horse_master(
                 )
             )
 
-    # Historical age column.
     if (
         "horse_age_at_race"
         not in df.columns
@@ -2274,9 +2311,14 @@ def enrich_results_with_horse_master(
         if not horse:
             continue
 
-        # ----------------------------------------------------
-        # STATIC HORSE FIELDS
-        # ----------------------------------------------------
+        horse[
+            "hemisphere_of_origin"
+        ] = get_hemisphere_of_origin(
+            horse.get(
+                "country_of_origin",
+                ""
+            )
+        )
 
         for (
             horse_column,
@@ -2290,10 +2332,6 @@ def enrich_results_with_horse_master(
                 horse_column,
                 ""
             )
-
-        # ----------------------------------------------------
-        # HISTORICAL AGE ON THIS RACE DATE
-        # ----------------------------------------------------
 
         age_at_race = (
             calculate_horse_age_at_race(
@@ -2361,8 +2399,9 @@ def backfill_existing_results(
 
     print(
         f"Backfilling static horse "
-        f"information and historical age "
-        f"onto {len(df)} rows..."
+        f"information, hemisphere and "
+        f"historical age onto "
+        f"{len(df)} rows..."
     )
 
     df = enrich_results_with_horse_master(
@@ -2382,11 +2421,6 @@ def backfill_existing_results(
                 dtype="object"
             )
 
-    # IMPORTANT:
-    #
-    # Selecting only RACE_COLUMNS means old fields
-    # such as import_type, import_date and owner
-    # are physically removed from all_results.csv.
     df = df[
         RACE_COLUMNS
     ]
@@ -2540,7 +2574,6 @@ def get_prize_payout_percentage(
     ):
         return 0.0
 
-    # Historical: before 2023-09-10
     if race_date < PAYOUT_MODEL_CUTOFF:
 
         payout = {
@@ -2556,7 +2589,6 @@ def get_prize_payout_percentage(
             0.0
         )
 
-    # Current: 2023-09-10 onward
     payout = {
         1: 0.56,
         2: 0.21,
@@ -3009,18 +3041,14 @@ def save_daily_checkpoint(
         "=" * 70
     )
 
-    # Save newly scraped horses
     save_horse_master(
         horse_master
     )
 
-    # Refresh static horse fields
-    # and historical ages
     backfill_existing_results(
         horse_master
     )
 
-    # Recalculate point-in-time historical stats
     calculate_historical_career_stats()
 
     print(
@@ -3176,7 +3204,7 @@ def process_date(
         )
 
         # ----------------------------------------------------
-        # STATIC HORSE DATA + HISTORICAL AGE
+        # STATIC HORSE DATA + AGE + HEMISPHERE
         # ----------------------------------------------------
 
         results_df = (
@@ -3371,10 +3399,6 @@ def main():
             )
 
         except Exception as exc:
-
-            # ------------------------------------------------
-            # EMERGENCY SAVE
-            # ------------------------------------------------
 
             print()
             print(
