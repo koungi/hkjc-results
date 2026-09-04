@@ -376,12 +376,8 @@ def get_official_horse_birthday(
     if is_southern_hemisphere_horse(
         country_of_origin
     ):
-        # Southern Hemisphere:
-        # official birthday = 1 August
         return 8, 1
 
-    # Northern / Other:
-    # official birthday = 1 January
     return 1, 1
 
 
@@ -1382,8 +1378,6 @@ def build_result_column_map(
             best_score = score
             best_map = current_map
 
-    # A genuine result header should match
-    # several expected columns.
     if best_score < 5:
         return {}
 
@@ -1541,8 +1535,6 @@ def extract_results(
             "odds will be blank"
         )
 
-    # Running Position is intentionally
-    # detected but ignored.
     if (
         "running_position"
         in column_map
@@ -1629,9 +1621,6 @@ def extract_results(
                 )
             )
 
-        # Skip non-runner/table decoration
-        # rows that contain neither a horse
-        # ID nor horse number.
         if (
             not horse_id
             and
@@ -2169,6 +2158,18 @@ def extract_horse_profile(
     # --------------------------------------------------------
     # COLOUR / SEX
     # --------------------------------------------------------
+    #
+    # IMPORTANT:
+    # Split from the RIGHT so multi-colour horses such as:
+    #
+    # Bay / Brown / Gelding
+    #
+    # become:
+    #
+    # horse_colour = Bay / Brown
+    # horse_sex    = Gelding
+    #
+    # --------------------------------------------------------
 
     colour_sex = (
         extract_profile_value(
@@ -2182,7 +2183,7 @@ def extract_horse_profile(
         parts = [
             clean_text(item)
             for item
-            in colour_sex.split(
+            in colour_sex.rsplit(
                 "/",
                 1
             )
@@ -2668,8 +2669,6 @@ def ensure_horse_profiles(
                 merged_profile
             )
 
-        # Always rebuild hemisphere
-        # from origin.
         profile[
             "hemisphere_of_origin"
         ] = get_hemisphere_of_origin(
