@@ -86,8 +86,6 @@ OUTPUT_CSV = os.path.join(
 
 
 OUTPUT_COLUMNS = [
-
-    # Race information
     "race_date",
     "racecourse_code",
     "racecourse_name",
@@ -103,7 +101,6 @@ OUTPUT_COLUMNS = [
     "rating_band",
     "race_class",
 
-    # Runner information
     "horse_number",
     "horse_name",
     "handicap_weight",
@@ -114,7 +111,6 @@ OUTPUT_COLUMNS = [
     "declared_horse_weight",
     "days_since_last_run",
 
-    # Horse profile information
     "horse_age",
     "horse_sex",
     "season_stakes_hkd",
@@ -122,7 +118,6 @@ OUTPUT_COLUMNS = [
     "sire",
     "dam",
 
-    # IDs / sources
     "horse_id",
     "runner_id",
     "horse_profile_url",
@@ -253,7 +248,7 @@ def http_get(url):
 
 
 # ============================================================
-# GENERAL HELPERS
+# HELPERS
 # ============================================================
 
 def clean_text(value):
@@ -273,16 +268,14 @@ def clean_text(value):
 
 def parse_int(value):
 
-    text = clean_text(
-        value
-    ).replace(
-        ",",
-        "",
-    )
-
     match = re.search(
         r"-?\d+",
-        text,
+        clean_text(
+            value
+        ).replace(
+            ",",
+            "",
+        ),
     )
 
     if not match:
@@ -301,15 +294,13 @@ def parse_int(value):
 
 def parse_money(value):
 
-    text = clean_text(
-        value
-    )
-
     match = re.search(
         r"(?:HK\s*)?"
         r"\$\s*"
         r"([\d,]+)",
-        text,
+        clean_text(
+            value
+        ),
         re.I,
     )
 
@@ -334,28 +325,31 @@ def parse_money(value):
 
 def normalise_header(value):
 
-    text = clean_text(
-        value
-    ).lower()
-
-    text = text.replace(
-        "’",
-        "'",
+    text = (
+        clean_text(
+            value
+        )
+        .lower()
+        .replace(
+            "’",
+            "'",
+        )
     )
 
-    text = text.replace(
-        "+/-",
-        " vs ",
-    )
-
-    text = text.replace(
-        "+",
-        " ",
-    )
-
-    text = text.replace(
-        "-",
-        " ",
+    text = (
+        text
+        .replace(
+            "+/-",
+            " vs ",
+        )
+        .replace(
+            "+",
+            " ",
+        )
+        .replace(
+            "-",
+            " ",
+        )
     )
 
     text = text.replace(
@@ -394,9 +388,8 @@ def parse_requested_date():
     except ValueError as exc:
 
         raise SystemExit(
-            "RACE_DATE must use "
-            "YYYY-MM-DD, for example "
-            "2026-09-06"
+            "RACE_DATE must be YYYY-MM-DD, "
+            "for example 2026-09-06"
         ) from exc
 
 
@@ -478,7 +471,7 @@ def extract_horse_id(url):
 
 
 # ============================================================
-# DISCOVER LOCAL MEETING
+# DISCOVER RACES
 # ============================================================
 
 def discover_races():
@@ -504,7 +497,7 @@ def discover_races():
     discovered_numbers = set()
 
     # --------------------------------------------------------
-    # First detect venue from valid racecard links.
+    # Detect local venue from valid HKJC racecard links.
     # --------------------------------------------------------
 
     for link in soup.find_all(
@@ -529,6 +522,7 @@ def discover_races():
             not in
             parsed.path.lower()
         ):
+
             continue
 
         query = parse_qs(
@@ -550,12 +544,10 @@ def discover_races():
             .upper()
         )
 
-        linked_race_no = (
-            parse_int(
-                query_value_case_insensitive(
-                    query,
-                    "RaceNo",
-                )
+        linked_race_no = parse_int(
+            query_value_case_insensitive(
+                query,
+                "RaceNo",
             )
         )
 
@@ -566,6 +558,7 @@ def discover_races():
             !=
             requested
         ):
+
             continue
 
         if linked_course in {
@@ -577,7 +570,10 @@ def discover_races():
                 linked_course
             )
 
-        if linked_race_no is not None:
+        if (
+            linked_race_no
+            is not None
+        ):
 
             discovered_numbers.add(
                 linked_race_no
@@ -589,21 +585,21 @@ def discover_races():
 
     if not racecourse:
 
-        page_text = clean_text(
+        text = clean_text(
             soup.get_text(
                 " ",
                 strip=True,
             )
         )
 
-        if "Sha Tin" in page_text:
+        if "Sha Tin" in text:
 
             racecourse = "ST"
 
         elif (
             "Happy Valley"
             in
-            page_text
+            text
         ):
 
             racecourse = "HV"
@@ -618,25 +614,15 @@ def discover_races():
 
             return []
 
-    print(
-        f"Detected venue: "
-        f"{racecourse}"
-    )
-
-    print(
-        f"Navigation race numbers: "
-        f"{sorted(discovered_numbers)}"
-    )
-
     # --------------------------------------------------------
-    # IMPORTANT:
+    # IMPORTANT
     #
-    # Always probe races 1 through 12.
+    # Always probe R1-R12.
     #
-    # This prevents Race 1 being missed if the navigation
-    # HTML doesn't expose it correctly.
+    # This prevents Race 1 being missed because HKJC's
+    # navigation markup omitted it.
     #
-    # Non-existent race numbers simply get skipped later.
+    # Non-existent race numbers are ignored later.
     # --------------------------------------------------------
 
     tasks = []
@@ -661,15 +647,23 @@ def discover_races():
         })
 
     print(
-        "Queued Race 1 through "
-        "Race 12."
+        f"Detected venue: "
+        f"{racecourse}; "
+        f"navigation race numbers: "
+        f"{sorted(discovered_numbers)}"
+    )
+
+    print(
+        "Queued Race 1 through Race 12; "
+        "pages without a runner table "
+        "will be ignored."
     )
 
     return tasks
 
 
 # ============================================================
-# RACE CLASS
+# CLASS
 # ============================================================
 
 def normalise_race_class(value):
@@ -681,9 +675,10 @@ def normalise_race_class(value):
     if not text:
         return ""
 
-    # --------------------------------------------------------
-    # CLASS 1 TO CLASS 5
-    # --------------------------------------------------------
+    # Class 1 -> C1
+    # Class 2 -> C2
+    # ...
+    # Class 5 -> C5
 
     class_match = re.search(
         r"\bClass\s*([1-5])\b",
@@ -698,9 +693,9 @@ def normalise_race_class(value):
             f"{class_match.group(1)}"
         )
 
-    # --------------------------------------------------------
-    # GROUP 1 / 2 / 3
-    # --------------------------------------------------------
+    # Group One -> G1
+    # Group Two -> G2
+    # Group Three -> G3
 
     group_match = re.search(
         r"\bGroup\s*"
@@ -766,14 +761,8 @@ def extract_rating_band_from_header(
     if not text:
         return ""
 
-    # --------------------------------------------------------
-    # Current HKJC format:
-    #
+    # Example:
     # Rating: 40-0
-    # Rating: 60-40
-    # Rating: 80-60
-    # Rating: 100-80
-    # --------------------------------------------------------
 
     match = re.search(
         r"\bRating"
@@ -796,9 +785,8 @@ def extract_rating_band_from_header(
             ),
         )
 
-    # --------------------------------------------------------
-    # Fallback without colon.
-    # --------------------------------------------------------
+    # Fallback:
+    # Rating 40-0
 
     match = re.search(
         r"\bRating"
@@ -821,10 +809,8 @@ def extract_rating_band_from_header(
             ),
         )
 
-    # --------------------------------------------------------
     # Final fallback:
-    # standalone numeric range.
-    # --------------------------------------------------------
+    # standalone range between commas.
 
     for part in [
         clean_text(
@@ -906,10 +892,7 @@ def parse_race_header(
     race_heading_index = None
 
     # --------------------------------------------------------
-    # RACE NAME
-    #
-    # Example:
-    # Race 1 - THE EXAMPLE HANDICAP
+    # Race 1 - EXAMPLE HANDICAP
     # --------------------------------------------------------
 
     for (
@@ -948,11 +931,10 @@ def parse_race_header(
 
             break
 
-    # --------------------------------------------------------
-    # Look at strings near the race heading.
-    # --------------------------------------------------------
-
-    if race_heading_index is not None:
+    if (
+        race_heading_index
+        is not None
+    ):
 
         nearby = strings[
             race_heading_index:
@@ -966,7 +948,7 @@ def parse_race_header(
     for text in nearby:
 
         # ----------------------------------------------------
-        # DATE / VENUE / START TIME
+        # Venue / race time
         # ----------------------------------------------------
 
         if (
@@ -1016,7 +998,7 @@ def parse_race_header(
                 )
 
         # ----------------------------------------------------
-        # TRACK / COURSE / DISTANCE / GOING
+        # Surface / course / distance / going
         #
         # Example:
         # Turf, "A" Course, 1200M, Good
@@ -1096,12 +1078,12 @@ def parse_race_header(
                 )
 
         # ----------------------------------------------------
-        # PRIZE MONEY / RATING BAND / CLASS
+        # Prize / rating band / class
         #
-        # Examples:
-        #
+        # Example:
         # Prize Money: $875,000, Rating: 40-0, Class 5
         #
+        # Group example:
         # Prize Money: $4,200,000, -, Group Three
         # ----------------------------------------------------
 
@@ -1130,19 +1112,17 @@ def parse_race_header(
             )
 
     # --------------------------------------------------------
-    # FALLBACK SEARCH FOR RATING BAND / CLASS
-    #
-    # Some HKJC layouts split the header into separate HTML
-    # elements. Search nearby strings again if needed.
+    # Fallback search if HKJC separates header pieces
+    # into multiple HTML elements.
     # --------------------------------------------------------
 
-    if not rating_band:
-
-        combined_nearby = clean_text(
-            " ".join(
-                nearby
-            )
+    combined_nearby = clean_text(
+        " ".join(
+            nearby
         )
+    )
+
+    if not rating_band:
 
         rating_band = (
             extract_rating_band_from_header(
@@ -1151,12 +1131,6 @@ def parse_race_header(
         )
 
     if not race_class:
-
-        combined_nearby = clean_text(
-            " ".join(
-                nearby
-            )
-        )
 
         race_class = (
             normalise_race_class(
@@ -1258,35 +1232,7 @@ def parse_race_header(
 
 
 # ============================================================
-# RACECARD RUNNER TABLE
-#
-# INCLUDED:
-#
-# horse number
-# horse name
-# handicap weight
-# jockey
-# draw
-# trainer
-# rating
-# declared horse weight
-# days since last run
-#
-# NOT INCLUDED:
-#
-# last 6 runs
-# colour
-# brand number
-# probable overweight
-# international rating
-# rating +/-
-# horse weight change
-# best time
-# WFA
-# priority
-# gear
-# owner
-# import category
+# RACECARD TABLE
 # ============================================================
 
 TABLE_HEADER_ALIASES = {
@@ -1336,6 +1282,26 @@ TABLE_HEADER_ALIASES = {
 }
 
 
+# Deliberately excluded:
+#
+# Last 6 Runs
+# Colour
+# Brand No.
+# Probable Overweight
+# International Rating
+# Rating +/-
+# Horse Weight Change
+# Best Time
+# WFA
+# Priority
+# Gear
+# Owner
+# Import Category
+#
+# Age / Sex / Stakes / Sire / Dam are fetched
+# from each horse profile instead.
+
+
 def identify_table_header(value):
 
     normalised = (
@@ -1343,9 +1309,6 @@ def identify_table_header(value):
             value
         )
     )
-
-    if not normalised:
-        return None
 
     for (
         canonical,
@@ -1361,118 +1324,176 @@ def identify_table_header(value):
     return None
 
 
-def build_column_map(table):
+def direct_cells(
+    row,
+    names=("th", "td"),
+):
 
-    best_map = {}
+    cells = row.find_all(
+        list(
+            names
+        ),
+        recursive=False,
+    )
 
-    for row in table.find_all(
-        "tr"
+    if cells:
+
+        return cells
+
+    return row.find_all(
+        list(
+            names
+        )
+    )
+
+
+# ============================================================
+# FIND THE TRUE HKJC STARTER HEADER
+# ============================================================
+
+def build_column_map_from_header_row(
+    row,
+):
+
+    cells = direct_cells(
+        row
+    )
+
+    if not cells:
+
+        return {}
+
+    normalised_cells = [
+        normalise_header(
+            cell.get_text(
+                " ",
+                strip=True,
+            )
+        )
+        for cell in
+        cells
+    ]
+
+    normalised_set = set(
+        normalised_cells
+    )
+
+    # --------------------------------------------------------
+    # Fingerprint of the actual HKJC starter table.
+    #
+    # This prevents other tables / controls on the page being
+    # mistaken for the horse table.
+    # --------------------------------------------------------
+
+    fingerprint = {
+        "horse no",
+        "last 6 runs",
+        "colour",
+        "horse",
+        "wt",
+        "jockey",
+        "draw",
+        "trainer",
+        "rtg",
+        "horse wt declaration",
+        "days since last run",
+    }
+
+    if not fingerprint.issubset(
+        normalised_set
     ):
 
-        cells = row.find_all(
-            [
-                "th",
-                "td",
-            ],
-            recursive=False,
-        )
+        return {}
 
-        if not cells:
+    column_map = {}
 
-            cells = row.find_all(
-                [
-                    "th",
-                    "td",
-                ]
-            )
+    for (
+        index,
+        cell,
+    ) in enumerate(
+        cells
+    ):
 
-        current = {}
-
-        for (
-            index,
-            cell,
-        ) in enumerate(
-            cells
-        ):
-
-            canonical = (
-                identify_table_header(
-                    cell.get_text(
-                        " ",
-                        strip=True,
-                    )
+        canonical = (
+            identify_table_header(
+                cell.get_text(
+                    " ",
+                    strip=True,
                 )
             )
-
-            if (
-                canonical
-                and
-                canonical
-                not in
-                current
-            ):
-
-                current[
-                    canonical
-                ] = index
-
-        required = {
-            "horse_number",
-            "horse_name",
-            "jockey",
-            "trainer",
-        }
+        )
 
         if (
-            required.issubset(
-                current.keys()
-            )
+            canonical
             and
-            len(current)
-            >
-            len(best_map)
+            canonical
+            not in
+            column_map
         ):
 
-            best_map = (
-                current
-            )
+            column_map[
+                canonical
+            ] = index
 
-    return best_map
+    required = {
+        "horse_number",
+        "horse_name",
+        "handicap_weight",
+        "jockey",
+        "draw",
+        "trainer",
+        "horse_rating",
+        "declared_horse_weight",
+        "days_since_last_run",
+    }
+
+    if required.issubset(
+        column_map
+    ):
+
+        return column_map
+
+    return {}
 
 
-def find_main_runner_table(soup):
+def find_main_runner_table(
+    soup,
+):
 
-    best_table = None
-
-    best_map = {}
+    # --------------------------------------------------------
+    # Return:
+    #
+    # table
+    # true header row
+    # column map
+    # --------------------------------------------------------
 
     for table in soup.find_all(
         "table"
     ):
 
-        column_map = (
-            build_column_map(
-                table
-            )
-        )
-
-        if (
-            len(column_map)
-            >
-            len(best_map)
+        for row in table.find_all(
+            "tr"
         ):
 
-            best_table = (
-                table
+            column_map = (
+                build_column_map_from_header_row(
+                    row
+                )
             )
 
-            best_map = (
-                column_map
-            )
+            if column_map:
+
+                return (
+                    table,
+                    row,
+                    column_map,
+                )
 
     return (
-        best_table,
-        best_map,
+        None,
+        None,
+        {},
     )
 
 
@@ -1528,8 +1549,208 @@ def get_cell_text(
     )
 
 
+def find_horse_link(
+    container,
+):
+
+    if container is None:
+        return None
+
+    for link in container.find_all(
+        "a",
+        href=True,
+    ):
+
+        absolute = urljoin(
+            "https://racing.hkjc.com",
+            link.get(
+                "href",
+                "",
+            ),
+        )
+
+        if extract_horse_id(
+            absolute
+        ):
+
+            return link
+
+    return None
+
+
 # ============================================================
-# PARSE RUNNERS
+# DUPLICATE PROTECTION
+# ============================================================
+
+def runner_completeness_score(
+    runner,
+):
+
+    fields = (
+        "horse_name",
+        "handicap_weight",
+        "jockey",
+        "draw",
+        "trainer",
+        "horse_rating",
+        "declared_horse_weight",
+        "days_since_last_run",
+        "horse_id",
+        "horse_profile_url",
+    )
+
+    score = 0
+
+    for field in fields:
+
+        value = clean_text(
+            runner.get(
+                field
+            )
+        )
+
+        if value not in {
+            "",
+            "None",
+            "nan",
+        }:
+
+            score += 1
+
+    return score
+
+
+def dedupe_race_runners(
+    runners,
+):
+
+    # --------------------------------------------------------
+    # FIRST GUARD:
+    # One row per horse number within a race.
+    # --------------------------------------------------------
+
+    by_number = {}
+
+    for runner in runners:
+
+        key = (
+            runner.get(
+                "race_id"
+            ),
+            runner.get(
+                "horse_number"
+            ),
+        )
+
+        existing = (
+            by_number.get(
+                key
+            )
+        )
+
+        if (
+            existing is None
+            or
+            runner_completeness_score(
+                runner
+            )
+            >
+            runner_completeness_score(
+                existing
+            )
+        ):
+
+            if existing is not None:
+
+                print(
+                    f"DUPLICATE HORSE NUMBER "
+                    f"REPLACED: "
+                    f"{runner.get('race_id')} "
+                    f"horse "
+                    f"{runner.get('horse_number')}"
+                )
+
+            by_number[
+                key
+            ] = runner
+
+        else:
+
+            print(
+                f"DUPLICATE HORSE NUMBER "
+                f"IGNORED: "
+                f"{runner.get('race_id')} "
+                f"horse "
+                f"{runner.get('horse_number')}"
+            )
+
+    # --------------------------------------------------------
+    # SECOND GUARD:
+    # The same horse ID cannot appear twice in one race.
+    # --------------------------------------------------------
+
+    by_horse_id = {}
+
+    no_id_rows = []
+
+    for runner in (
+        by_number.values()
+    ):
+
+        horse_id = clean_text(
+            runner.get(
+                "horse_id"
+            )
+        )
+
+        if not horse_id:
+
+            no_id_rows.append(
+                runner
+            )
+
+            continue
+
+        key = (
+            runner.get(
+                "race_id"
+            ),
+            horse_id,
+        )
+
+        existing = (
+            by_horse_id.get(
+                key
+            )
+        )
+
+        if (
+            existing is None
+            or
+            runner_completeness_score(
+                runner
+            )
+            >
+            runner_completeness_score(
+                existing
+            )
+        ):
+
+            by_horse_id[
+                key
+            ] = runner
+
+    return (
+        list(
+            by_horse_id.values()
+        )
+        +
+        no_id_rows
+    )
+
+
+# ============================================================
+# PARSE STARTERS
 # ============================================================
 
 def parse_runners(
@@ -1539,6 +1760,7 @@ def parse_runners(
 
     (
         table,
+        header_row,
         column_map,
     ) = find_main_runner_table(
         soup
@@ -1547,29 +1769,51 @@ def parse_runners(
     if (
         table is None
         or
+        header_row is None
+        or
         not column_map
     ):
 
         return []
 
+    rows = table.find_all(
+        "tr"
+    )
+
+    try:
+
+        header_index = (
+            rows.index(
+                header_row
+            )
+        )
+
+    except ValueError:
+
+        header_index = -1
+
     runners = []
 
-    for row in table.find_all(
-        "tr"
-    ):
+    # --------------------------------------------------------
+    # IMPORTANT FIX:
+    #
+    # Parse only rows AFTER the true starter-table header.
+    #
+    # This prevents HKJC setup controls / duplicated responsive
+    # markup from being interpreted as actual starters.
+    # --------------------------------------------------------
 
-        cells = row.find_all(
-            "td",
-            recursive=False,
+    for row in rows[
+        header_index + 1:
+    ]:
+
+        cells = direct_cells(
+            row,
+            names=("td",),
         )
 
         if not cells:
 
-            cells = row.find_all(
-                "td"
-            )
-
-        if not cells:
             continue
 
         horse_number = (
@@ -1582,54 +1826,56 @@ def parse_runners(
             )
         )
 
+        # Genuine starter numbers only.
+
+        if (
+            horse_number is None
+            or
+            horse_number < 1
+            or
+            horse_number > 30
+        ):
+
+            continue
+
         horse_cell = get_cell(
             cells,
             column_map,
             "horse_name",
         )
 
-        horse_link = None
+        horse_link = (
+            find_horse_link(
+                horse_cell
+            )
+        )
 
-        if horse_cell is not None:
+        if horse_link is None:
 
             horse_link = (
-                horse_cell.find(
-                    "a",
-                    href=re.compile(
-                        r"horse\?horseid=",
-                        re.I,
-                    ),
+                find_horse_link(
+                    row
                 )
             )
 
         if horse_link is None:
 
-            horse_link = row.find(
-                "a",
-                href=re.compile(
-                    r"horse\?horseid=",
-                    re.I,
-                ),
-            )
-
-        if (
-            horse_number is None
-            or
-            horse_link is None
-        ):
-
             continue
 
-        horse_profile_url = urljoin(
-            "https://racing.hkjc.com",
-            horse_link.get(
-                "href",
-                "",
-            ),
+        horse_profile_url = (
+            urljoin(
+                "https://racing.hkjc.com",
+                horse_link.get(
+                    "href",
+                    "",
+                ),
+            )
         )
 
-        horse_id = extract_horse_id(
-            horse_profile_url
+        horse_id = (
+            extract_horse_id(
+                horse_profile_url
+            )
         )
 
         horse_name = clean_text(
@@ -1638,6 +1884,14 @@ def parse_runners(
                 strip=True,
             )
         )
+
+        if (
+            not horse_id
+            or
+            not horse_name
+        ):
+
+            continue
 
         runner = dict(
             race_header
@@ -1747,68 +2001,39 @@ def parse_runners(
         )
 
     # --------------------------------------------------------
-    # DUPLICATE PROTECTION
-    #
-    # HKJC pages can contain duplicated responsive markup.
-    #
-    # Keep exactly one copy of a horse within each race.
+    # Remove duplicate responsive-table copies.
     # --------------------------------------------------------
 
-    deduped = []
-
-    seen = set()
-
-    for runner in runners:
-
-        horse_id = clean_text(
-            runner.get(
-                "horse_id"
-            )
+    runners = (
+        dedupe_race_runners(
+            runners
         )
+    )
 
-        if horse_id:
-
-            key = (
-                runner.get(
-                    "race_id"
-                ),
-                "horse_id",
-                horse_id,
+    runners.sort(
+        key=lambda item:
+            item.get(
+                "horse_number"
             )
+            or
+            999
+    )
 
-        else:
-
-            key = (
-                runner.get(
-                    "race_id"
-                ),
-                "horse_number",
-                runner.get(
-                    "horse_number"
-                ),
-            )
-
-        if key in seen:
-
-            print(
-                f"DUPLICATE RUNNER IGNORED: "
-                f"{runner.get('race_id')} "
-                f"Horse "
-                f"{runner.get('horse_number')} "
-                f"{runner.get('horse_name')}"
-            )
-
-            continue
-
-        seen.add(
-            key
+    numbers = [
+        runner.get(
+            "horse_number"
         )
+        for runner in
+        runners
+    ]
 
-        deduped.append(
-            runner
-        )
+    print(
+        f"STARTERS PARSED "
+        f"{race_header['race_id']}: "
+        f"{numbers}"
+    )
 
-    return deduped
+    return runners
 
 
 # ============================================================
@@ -1816,12 +2041,12 @@ def parse_runners(
 #
 # ONLY:
 #
-# age
-# sex
-# season stakes
-# total stakes
-# sire
-# dam
+# Age
+# Sex
+# Season Stakes
+# Total Stakes
+# Sire
+# Dam
 # ============================================================
 
 def extract_horse_profile_fields(
@@ -1857,7 +2082,6 @@ def extract_horse_profile_fields(
     # --------------------------------------------------------
     # AGE
     #
-    # Example:
     # Country of Origin / Age : NZ / 6
     # --------------------------------------------------------
 
@@ -1900,10 +2124,9 @@ def extract_horse_profile_fields(
     # --------------------------------------------------------
     # SEX
     #
-    # Example:
     # Colour / Sex : Bay / Gelding
     #
-    # Colour is deliberately ignored.
+    # Colour itself is not saved.
     # --------------------------------------------------------
 
     colour_sex = re.search(
@@ -2110,7 +2333,9 @@ def fetch_horse_profile(
 # FETCH ONE RACE
 # ============================================================
 
-def fetch_race(task):
+def fetch_race(
+    task,
+):
 
     response = http_get(
         task[
@@ -2131,29 +2356,25 @@ def fetch_race(task):
         "html.parser",
     )
 
-    race_header = (
-        parse_race_header(
-            soup,
-            task[
-                "racecourse_code"
-            ],
-            task[
-                "race_number"
-            ],
-            response.url,
-        )
+    header = parse_race_header(
+        soup,
+        task[
+            "racecourse_code"
+        ],
+        task[
+            "race_number"
+        ],
+        response.url,
     )
 
     runners = parse_runners(
         soup,
-        race_header,
+        header,
     )
 
     # --------------------------------------------------------
-    # NO TABLE = NORMAL SKIP
-    #
-    # This is not treated as an error because we deliberately
-    # probe Race 1 through Race 12.
+    # Because we deliberately probe R1-R12,
+    # a race number with no table is a normal skip.
     # --------------------------------------------------------
 
     if not runners:
@@ -2175,7 +2396,9 @@ def fetch_race(task):
 # FETCH ALL RACES CONCURRENTLY
 # ============================================================
 
-def fetch_all_races(tasks):
+def fetch_all_races(
+    tasks,
+):
 
     if not tasks:
         return []
@@ -2190,6 +2413,7 @@ def fetch_all_races(tasks):
     all_runners = []
 
     print()
+
     print(
         "=" * 70
     )
@@ -2213,7 +2437,8 @@ def fetch_all_races(tasks):
     )
 
     with ThreadPoolExecutor(
-        max_workers=workers
+        max_workers=
+            workers
     ) as executor:
 
         futures = {
@@ -2284,7 +2509,8 @@ def fetch_all_races(tasks):
                 f"{returned_task['racecourse_code']} "
                 f"R{returned_task['race_number']} "
                 f"-> "
-                f"{len(runners)} runners"
+                f"{len(runners)} "
+                f"runners"
             )
 
             all_runners.extend(
@@ -2298,7 +2524,9 @@ def fetch_all_races(tasks):
 # FETCH UNIQUE HORSE PROFILES
 # ============================================================
 
-def enrich_horses(runners):
+def enrich_horses(
+    runners,
+):
 
     unique_horses = {}
 
@@ -2340,6 +2568,7 @@ def enrich_horses(runners):
     profiles = {}
 
     print()
+
     print(
         "=" * 70
     )
@@ -2363,7 +2592,8 @@ def enrich_horses(runners):
     )
 
     with ThreadPoolExecutor(
-        max_workers=workers
+        max_workers=
+            workers
     ) as executor:
 
         futures = {
@@ -2420,7 +2650,7 @@ def enrich_horses(runners):
                 ] = profile
 
     # --------------------------------------------------------
-    # MERGE PROFILE DATA INTO EACH RUNNER
+    # Merge profile info back into each runner.
     # --------------------------------------------------------
 
     for runner in runners:
@@ -2436,6 +2666,7 @@ def enrich_horses(runners):
         )
 
         if not profile:
+
             continue
 
         runner[
@@ -2491,64 +2722,58 @@ def enrich_horses(runners):
 
 
 # ============================================================
-# FINAL DUPLICATE PROTECTION + SORT
+# FINAL DUPLICATE PROTECTION
 # ============================================================
 
-def sort_runners(runners):
+def sort_runners(
+    runners,
+):
 
     # --------------------------------------------------------
-    # Final safety net:
+    # Final safety net across the entire day.
     #
-    # one horse = one row within a race.
+    # There must be exactly one row for each:
+    #
+    # race_id + horse_number
+    #
+    # If duplicate markup survives, keep whichever copy has
+    # the most useful information.
     # --------------------------------------------------------
 
     unique = {}
 
     for row in runners:
 
-        horse_id = clean_text(
+        key = (
             row.get(
-                "horse_id"
+                "race_id"
+            ),
+            row.get(
+                "horse_number"
+            ),
+        )
+
+        existing = (
+            unique.get(
+                key
             )
         )
 
-        if horse_id:
-
-            key = (
-                row.get(
-                    "race_id"
-                ),
-                "horse_id",
-                horse_id,
+        if (
+            existing is None
+            or
+            runner_completeness_score(
+                row
             )
-
-        else:
-
-            key = (
-                row.get(
-                    "race_id"
-                ),
-                "horse_number",
-                row.get(
-                    "horse_number"
-                ),
+            >
+            runner_completeness_score(
+                existing
             )
-
-        if key not in unique:
+        ):
 
             unique[
                 key
             ] = row
-
-        else:
-
-            print(
-                f"FINAL DUPLICATE REMOVED: "
-                f"{row.get('race_id')} "
-                f"Horse "
-                f"{row.get('horse_number')} "
-                f"{row.get('horse_name')}"
-            )
 
     return sorted(
         unique.values(),
@@ -2570,7 +2795,8 @@ def sort_runners(runners):
                         )
                         is not None
                     )
-                    else 999
+                    else
+                    999
                 ),
 
                 (
@@ -2583,23 +2809,28 @@ def sort_runners(runners):
                         )
                         is not None
                     )
-                    else 999
+                    else
+                    999
                 ),
             ),
     )
 
 
 # ============================================================
-# WRITE CSV
+# WRITE CSV ONLY
 # ============================================================
 
-def write_csv(runners):
+def write_csv(
+    runners,
+):
 
     df = pd.DataFrame(
         runners
     )
 
-    for column in OUTPUT_COLUMNS:
+    for column in (
+        OUTPUT_COLUMNS
+    ):
 
         if column not in df.columns:
 
@@ -2607,17 +2838,17 @@ def write_csv(runners):
                 column
             ] = None
 
-    df = df[
+    df[
         OUTPUT_COLUMNS
-    ]
-
-    df.to_csv(
+    ].to_csv(
         OUTPUT_CSV,
         index=False,
     )
 
 
-def write_outputs(runners):
+def write_outputs(
+    runners,
+):
 
     os.makedirs(
         RESULTS_DIR,
@@ -2661,8 +2892,7 @@ def main():
     )
 
     print(
-        "HKJC UPCOMING "
-        "RACECARD COLLECTOR"
+        "HKJC UPCOMING RACECARD COLLECTOR"
     )
 
     print(
@@ -2685,7 +2915,8 @@ def main():
     )
 
     # ========================================================
-    # 1. DISCOVER MEETING AND QUEUE R1-R12
+    # STEP 1
+    # Find venue and queue R1-R12.
     # ========================================================
 
     tasks = discover_races()
@@ -2705,7 +2936,8 @@ def main():
         return
 
     # ========================================================
-    # 2. FETCH RACECARDS
+    # STEP 2
+    # Fetch all racecards.
     # ========================================================
 
     runners = fetch_all_races(
@@ -2727,7 +2959,8 @@ def main():
         return
 
     # ========================================================
-    # 3. FETCH UNIQUE HORSE PROFILE DATA
+    # STEP 3
+    # Fetch each unique horse profile once.
     # ========================================================
 
     runners = enrich_horses(
@@ -2735,7 +2968,8 @@ def main():
     )
 
     # ========================================================
-    # 4. WRITE CSV
+    # STEP 4
+    # Deduplicate + save CSV.
     # ========================================================
 
     write_outputs(
