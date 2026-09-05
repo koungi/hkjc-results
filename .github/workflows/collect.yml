@@ -1,9 +1,13 @@
 name: HKJC Historical Results Collector
 
 on:
-  # Manual starting point
+  # ------------------------------------------------------------
+  # MANUAL START
+  # ------------------------------------------------------------
+
   workflow_dispatch:
     inputs:
+
       start_date:
         description: "Month to start from YYYY-MM-DD"
         required: true
@@ -14,8 +18,17 @@ on:
         required: true
         default: "2026-09-04"
 
-  # Recovery trigger.
-  # If the chained run stops, this can restart the process.
+
+  # ------------------------------------------------------------
+  # RECOVERY
+  # ------------------------------------------------------------
+  #
+  # If the chain stops or a month fails,
+  # this retries from collector_state.txt.
+  #
+  # GitHub cron uses UTC.
+  # ------------------------------------------------------------
+
   schedule:
     - cron: "17 * * * *"
 
@@ -25,21 +38,27 @@ permissions:
   actions: write
 
 
-# Never allow two collector runs to modify results simultaneously.
+# --------------------------------------------------------------
+# NEVER RUN TWO COLLECTORS AT THE SAME TIME
+# --------------------------------------------------------------
+
 concurrency:
   group: hkjc-historical-collector
   cancel-in-progress: false
 
 
 jobs:
+
   collect:
+
     runs-on: ubuntu-latest
 
     steps:
 
-      # ------------------------------------------------------------
+
+      # ==========================================================
       # CHECKOUT
-      # ------------------------------------------------------------
+      # ==========================================================
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -47,9 +66,9 @@ jobs:
           fetch-depth: 0
 
 
-      # ------------------------------------------------------------
+      # ==========================================================
       # PYTHON
-      # ------------------------------------------------------------
+      # ==========================================================
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -57,9 +76,9 @@ jobs:
           python-version: "3.13"
 
 
-      # ------------------------------------------------------------
+      # ==========================================================
       # DEPENDENCIES
-      # ------------------------------------------------------------
+      # ==========================================================
 
       - name: Install packages
         run: |
@@ -67,24 +86,31 @@ jobs:
           pip install -r requirements.txt
 
 
-      # ------------------------------------------------------------
-      # DETERMINE WHICH MONTH TO COLLECT
-      # ------------------------------------------------------------
+      # ==========================================================
+      # DETERMINE WHICH MONTH TO PROCESS
+      # ==========================================================
 
       - name: Determine date range
         id: dates
         shell: bash
 
         run: |
+
           python - <<'PY'
-          import os
+
           import calendar
+          import os
+
           from datetime import datetime
 
-          event_name = os.environ["GITHUB_EVENT_NAME"]
+
+          event_name = os.environ[
+              "GITHUB_EVENT_NAME"
+          ]
+
 
           # ------------------------------------------------------
-          # MANUAL / CHAINED RUN
+          # MANUAL OR CHAINED RUN
           # ------------------------------------------------------
 
           if event_name == "workflow_dispatch":
@@ -92,17 +118,16 @@ jobs:
               start_text = "${{ inputs.start_date }}"
               final_text = "${{ inputs.final_date }}"
 
+
           # ------------------------------------------------------
-          # SCHEDULED RECOVERY RUN
+          # SCHEDULED RECOVERY
           # ------------------------------------------------------
 
           else:
 
-              if not os.path.exists("collector_state.txt"):
-
-                  start_text = "2006-01-01"
-
-              else:
+              if os.path.exists(
+                  "collector_state.txt"
+              ):
 
                   with open(
                       "collector_state.txt",
@@ -113,6 +138,11 @@ jobs:
                           f.read()
                           .strip()
                       )
+
+              else:
+
+                  start_text = "2006-01-01"
+
 
               final_text = "2026-09-04"
 
@@ -126,6 +156,7 @@ jobs:
               "%Y-%m-%d"
           ).date()
 
+
           final = datetime.strptime(
               final_text,
               "%Y-%m-%d"
@@ -133,7 +164,7 @@ jobs:
 
 
           # ------------------------------------------------------
-          # ALREADY FINISHED
+          # ALREADY COMPLETE
           # ------------------------------------------------------
 
           if start > final:
@@ -143,7 +174,9 @@ jobs:
               )
 
               with open(
-                  os.environ["GITHUB_OUTPUT"],
+                  os.environ[
+                      "GITHUB_OUTPUT"
+                  ],
                   "a"
               ) as f:
 
@@ -151,21 +184,27 @@ jobs:
                       "finished=true\n"
                   )
 
-              raise SystemExit(0)
+              raise SystemExit(
+                  0
+              )
 
 
           # ------------------------------------------------------
           # END OF CURRENT MONTH
           # ------------------------------------------------------
 
-          last_day = calendar.monthrange(
-              start.year,
-              start.month
-          )[1]
+          last_day = (
+              calendar.monthrange(
+                  start.year,
+                  start.month
+              )[1]
+          )
+
 
           month_end = start.replace(
               day=last_day
           )
+
 
           if month_end > final:
 
@@ -185,7 +224,9 @@ jobs:
           # ------------------------------------------------------
 
           with open(
-              os.environ["GITHUB_OUTPUT"],
+              os.environ[
+                  "GITHUB_OUTPUT"
+              ],
               "a"
           ) as f:
 
@@ -194,97 +235,152 @@ jobs:
               )
 
               f.write(
-                  f"start_date={start}\n"
+                  f"start_date="
+                  f"{start}\n"
               )
 
               f.write(
-                  f"end_date={month_end}\n"
+                  f"end_date="
+                  f"{month_end}\n"
               )
 
               f.write(
-                  f"final_date={final}\n"
+                  f"final_date="
+                  f"{final}\n"
               )
 
           PY
 
 
-      # ------------------------------------------------------------
-      # RUN SCRAPER
-      # ------------------------------------------------------------
+      # ==========================================================
+      # RUN WHOLE-MONTH SCRAPER
+      # ==========================================================
 
       - name: Run HKJC scraper
+        id: scraper
+
         if: steps.dates.outputs.finished != 'true'
 
+        # We temporarily allow the workflow to continue after
+        # scraper failure so partial useful results can be committed.
+        continue-on-error: true
+
         env:
+
           START_DATE: ${{ steps.dates.outputs.start_date }}
           END_DATE: ${{ steps.dates.outputs.end_date }}
 
+
           # ------------------------------------------------------
-          # HORSE CONCURRENCY
+          # PHASE 1
+          #
+          # ALL DATE PAGES FOR THE MONTH
           # ------------------------------------------------------
-          #
-          # 0 = automatic.
-          #
-          # Every horse requiring a page in the current race
-          # is requested concurrently.
-          #
-          # Example:
-          # 14 horses need pages -> 14 concurrent GETs.
-          #
-          MAX_HORSE_WORKERS: "0"
 
-          # No delay between horse GETs.
+          DATE_WORKERS: "16"
+
+
+          # ------------------------------------------------------
+          # PHASE 2
           #
-          # This is only the delay between completed races.
-          RACE_DELAY_SECONDS: "1"
+          # ALL DISCOVERED RACE PAGES
+          # ------------------------------------------------------
 
-          # Automatic retry for temporary HKJC errors.
-          HTTP_RETRIES: "3"
+          RACE_WORKERS: "20"
 
-          # Backoff:
-          # retry delays progressively increase.
-          HTTP_BACKOFF_FACTOR: "1.0"
 
-          # Timeout for individual horse requests.
+          # ------------------------------------------------------
+          # PHASE 3
+          #
+          # UNIQUE MISSING HORSES ACROSS THE WHOLE MONTH
+          #
+          # RECOMMENDED:
+          #
+          # HORSE_WORKERS: "20"
+          #
+          # IF YOU WANT EVERY MISSING HORSE IN THE MONTH
+          # SUBMITTED AT THE SAME TIME, CHANGE THIS TO:
+          #
+          # HORSE_WORKERS: "0"
+          #
+          # THIS IS THE SETTING YOU ASKED ABOUT.
+          # ------------------------------------------------------
+
+          HORSE_WORKERS: "20"
+
+
+          # ------------------------------------------------------
+          # HTTP SETTINGS
+          # ------------------------------------------------------
+
+          REQUEST_TIMEOUT: "60"
+
           HORSE_REQUEST_TIMEOUT: "60"
 
+          HTTP_RETRIES: "3"
+
+          HTTP_BACKOFF_FACTOR: "1.0"
+
+
         run: |
+
           echo "=================================================="
-          echo "HKJC COLLECTION"
+          echo "HKJC WHOLE-MONTH CONCURRENT COLLECTION"
           echo "=================================================="
+
           echo "Start date: $START_DATE"
           echo "End date:   $END_DATE"
-          echo "Horse workers: AUTO - entire race field"
-          echo "Race delay: $RACE_DELAY_SECONDS seconds"
-          echo "HTTP retries: $HTTP_RETRIES"
+
+          echo ""
+
+          echo "Date workers:  $DATE_WORKERS"
+          echo "Race workers:  $RACE_WORKERS"
+          echo "Horse workers: $HORSE_WORKERS"
+
           echo "=================================================="
 
           python hkjc.py
 
 
-      # ------------------------------------------------------------
-      # CALCULATE NEXT MONTH AND SAVE STATE
-      # ------------------------------------------------------------
+      # ==========================================================
+      # ADVANCE STATE
+      #
+      # ONLY IF THE ENTIRE MONTH COMPLETED SUCCESSFULLY
+      # ==========================================================
 
       - name: Update collector state
-        if: steps.dates.outputs.finished != 'true'
+
+        if: >
+          steps.dates.outputs.finished != 'true' &&
+          steps.scraper.outcome == 'success'
+
         id: next
+
         shell: bash
 
         run: |
+
           python - <<'PY'
+
           import os
-          from datetime import datetime, timedelta
+
+          from datetime import (
+              datetime,
+              timedelta
+          )
+
 
           end = datetime.strptime(
               "${{ steps.dates.outputs.end_date }}",
               "%Y-%m-%d"
           ).date()
 
+
           final = datetime.strptime(
               "${{ steps.dates.outputs.final_date }}",
               "%Y-%m-%d"
           ).date()
+
 
           next_date = (
               end
@@ -295,8 +391,15 @@ jobs:
           )
 
 
+          finished = (
+              next_date
+              >
+              final
+          )
+
+
           # ------------------------------------------------------
-          # SAVE NEXT START DATE
+          # SAVE NEXT MONTH
           # ------------------------------------------------------
 
           with open(
@@ -311,19 +414,14 @@ jobs:
               )
 
 
-          finished = (
-              next_date
-              >
-              final
-          )
-
-
           # ------------------------------------------------------
           # OUTPUTS
           # ------------------------------------------------------
 
           with open(
-              os.environ["GITHUB_OUTPUT"],
+              os.environ[
+                  "GITHUB_OUTPUT"
+              ],
               "a"
           ) as f:
 
@@ -344,6 +442,7 @@ jobs:
               f"{next_date}"
           )
 
+
           print(
               f"Finished: "
               f"{finished}"
@@ -352,25 +451,65 @@ jobs:
           PY
 
 
-      # ------------------------------------------------------------
-      # COMMIT RESULTS + HORSE CACHE + STATE
-      # ------------------------------------------------------------
+      # ==========================================================
+      # COMMIT RESULTS
+      #
+      # This also runs when the scraper failed.
+      #
+      # Why?
+      #
+      # The Python script may have successfully downloaded most
+      # of the month before one request ultimately failed.
+      #
+      # We preserve that useful work.
+      #
+      # collector_state.txt is NOT advanced when scraper failed,
+      # so the same month will be retried.
+      # ==========================================================
 
       - name: Commit results
-        if: steps.dates.outputs.finished != 'true'
+
+        if: ${{ always() && steps.dates.outputs.finished != 'true' }}
+
         shell: bash
 
         run: |
+
           git config \
             user.name \
             "github-actions[bot]"
+
 
           git config \
             user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add results/
-          git add collector_state.txt
+
+          # ------------------------------------------------------
+          # RESULTS
+          # ------------------------------------------------------
+
+          if [ -d results ]; then
+
+            git add results/
+
+          fi
+
+
+          # ------------------------------------------------------
+          # STATE
+          # ------------------------------------------------------
+
+          if [ -f collector_state.txt ]; then
+
+            git add collector_state.txt
+
+          fi
+
+
+          # ------------------------------------------------------
+          # COMMIT ONLY WHEN SOMETHING CHANGED
+          # ------------------------------------------------------
 
           if git diff --cached --quiet; then
 
@@ -381,30 +520,39 @@ jobs:
             git commit \
               -m "Add HKJC results ${{ steps.dates.outputs.start_date }} to ${{ steps.dates.outputs.end_date }}"
 
+
             git push
 
           fi
 
 
-      # ------------------------------------------------------------
-      # START NEXT MONTH IMMEDIATELY
-      # ------------------------------------------------------------
+      # ==========================================================
+      # START NEXT MONTH
+      #
+      # ONLY IF THIS MONTH SUCCEEDED
+      # ==========================================================
 
       - name: Start next month
+
         if: >
           steps.dates.outputs.finished != 'true' &&
+          steps.scraper.outcome == 'success' &&
           steps.next.outputs.finished != 'true'
 
         env:
+
           GH_TOKEN: ${{ github.token }}
 
         run: |
+
           echo "=================================================="
           echo "STARTING NEXT MONTH"
           echo "=================================================="
 
+
           echo \
             "Starting next month: ${{ steps.next.outputs.next_date }}"
+
 
           gh workflow run collect.yml \
             --ref "${{ github.ref_name }}" \
@@ -412,14 +560,50 @@ jobs:
             -f final_date="${{ steps.dates.outputs.final_date }}"
 
 
-      # ------------------------------------------------------------
-      # FINISHED
-      # ------------------------------------------------------------
+      # ==========================================================
+      # COMPLETE
+      # ==========================================================
 
       - name: Collection complete
-        if: steps.next.outputs.finished == 'true'
+
+        if: >
+          steps.dates.outputs.finished != 'true' &&
+          steps.scraper.outcome == 'success' &&
+          steps.next.outputs.finished == 'true'
 
         run: |
+
           echo "=================================================="
           echo "HISTORICAL COLLECTION COMPLETE"
           echo "=================================================="
+
+
+      # ==========================================================
+      # RESTORE FAILURE STATUS
+      #
+      # The scraper used continue-on-error so we could commit
+      # partial progress first.
+      #
+      # This final step makes the workflow visibly fail and,
+      # importantly, collector_state.txt has NOT moved forward.
+      # ==========================================================
+
+      - name: Fail run if scraper failed
+
+        if: steps.scraper.outcome == 'failure'
+
+        run: |
+
+          echo "=================================================="
+          echo "SCRAPER REPORTED UNRESOLVED FAILURES"
+          echo "=================================================="
+
+          echo "Partial progress has been preserved."
+
+          echo \
+            "collector_state.txt was NOT advanced."
+
+          echo \
+            "The recovery run will retry the same month."
+
+          exit 1
