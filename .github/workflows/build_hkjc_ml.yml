@@ -1,0 +1,114 @@
+name: Build HKJC ML CSV
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'results/races/all_results.csv'
+      - 'scripts/build_hkjc_ml_features.py'
+      - '.github/workflows/build_hkjc_ml.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-hkjc-ml-main
+  cancel-in-progress: true
+
+jobs:
+  build-ml-csv:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pandas>=2.2" "numpy>=1.26"
+
+      - name: Build ML feature CSV
+        run: |
+          python scripts/build_hkjc_ml_features.py \
+            --input results/races/all_results.csv \
+            --output results/races/all_results_ML.csv \
+            --manifest /tmp/all_results_ML.features.json
+
+      - name: Validate generated CSV
+        run: |
+          python - <<'PY'
+          import os
+          import pandas as pd
+
+          path = "results/races/all_results_ML.csv"
+
+          if not os.path.exists(path):
+              raise SystemExit(f"Missing output file: {path}")
+
+          size_mb = os.path.getsize(path) / (1024 * 1024)
+
+          sample = pd.read_csv(
+              path,
+              nrows=5,
+              low_memory=False
+          )
+
+          print(f"Generated: {path}")
+          print(f"Size: {size_mb:.1f} MiB")
+          print(f"Columns: {len(sample.columns)}")
+
+          required = [
+              "last1_finish",
+              "last2_finish",
+              "last3_finish",
+              "last4_finish",
+              "last5_finish",
+              "horse_elo_before",
+          ]
+
+          missing = [
+              column
+              for column in required
+              if column not in sample.columns
+          ]
+
+          if missing:
+              raise SystemExit(
+                  f"Expected ML columns missing: {missing}"
+              )
+
+          print("ML CSV validation passed.")
+          PY
+
+      - name: Configure Git LFS for generated ML CSV
+        run: |
+          git lfs install
+          git lfs track "results/races/all_results_ML.csv"
+
+      - name: Commit generated ML CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .gitattributes
+          git add results/races/all_results_ML.csv
+
+          if git diff --cached --quiet; then
+            echo "No ML CSV changes to commit."
+          else
+            git commit -m "Update HKJC ML feature dataset"
+            git push origin HEAD:main
+          fi
