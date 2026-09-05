@@ -3,13 +3,7 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
-from urllib.parse import (
-    urljoin,
-    urlsplit,
-    urlunsplit,
-    parse_qsl,
-    urlencode,
-)
+from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 
 import pandas as pd
 import requests
@@ -17,148 +11,42 @@ from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+BASE_URL = "https://racing.hkjc.com/en-us/local/information/archive/localresults"
+HORSE_BASE_URL = "https://racing.hkjc.com/en-us/local/information/horse"
 
-# ============================================================
-# CONFIG
-# ============================================================
+START_DATE = os.getenv("START_DATE", "2006-01-01")
+END_DATE = os.getenv("END_DATE", "2006-12-31")
 
-BASE_URL = (
-    "https://racing.hkjc.com/"
-    "en-us/local/information/archive/localresults"
-)
-
-HORSE_BASE_URL = (
-    "https://racing.hkjc.com/"
-    "en-us/local/information/horse"
-)
-
-START_DATE = os.getenv(
-    "START_DATE",
-    "2006-01-01",
-)
-
-END_DATE = os.getenv(
-    "END_DATE",
-    "2006-12-31",
-)
-
-
-# ------------------------------------------------------------
-# CONCURRENT WORKERS
-#
-# 0 means every task in that phase can run concurrently.
-# ------------------------------------------------------------
-
-DATE_WORKERS = max(
-    0,
-    int(
-        os.getenv(
-            "DATE_WORKERS",
-            "16",
-        )
-    ),
-)
-
-RACE_WORKERS = max(
-    0,
-    int(
-        os.getenv(
-            "RACE_WORKERS",
-            "20",
-        )
-    ),
-)
-
+DATE_WORKERS = max(0, int(os.getenv("DATE_WORKERS", "16")))
+RACE_WORKERS = max(0, int(os.getenv("RACE_WORKERS", "20")))
 HORSE_WORKERS = max(
     0,
     int(
         os.getenv(
             "HORSE_WORKERS",
-            os.getenv(
-                "MAX_HORSE_WORKERS",
-                "20",
-            ),
+            os.getenv("MAX_HORSE_WORKERS", "20"),
         )
     ),
 )
 
-
-# ------------------------------------------------------------
-# REQUEST SETTINGS
-# ------------------------------------------------------------
-
-REQUEST_TIMEOUT = float(
-    os.getenv(
-        "REQUEST_TIMEOUT",
-        "60",
-    )
-)
-
-HORSE_REQUEST_TIMEOUT = float(
-    os.getenv(
-        "HORSE_REQUEST_TIMEOUT",
-        "60",
-    )
-)
-
-HTTP_RETRIES = max(
-    0,
-    int(
-        os.getenv(
-            "HTTP_RETRIES",
-            "3",
-        )
-    ),
-)
-
-HTTP_BACKOFF_FACTOR = float(
-    os.getenv(
-        "HTTP_BACKOFF_FACTOR",
-        "1.0",
-    )
-)
-
-
-# ------------------------------------------------------------
-# OUTPUT FILES
-# ------------------------------------------------------------
+REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "60"))
+HORSE_REQUEST_TIMEOUT = float(os.getenv("HORSE_REQUEST_TIMEOUT", "60"))
+HTTP_RETRIES = max(0, int(os.getenv("HTTP_RETRIES", "3")))
+HTTP_BACKOFF_FACTOR = float(os.getenv("HTTP_BACKOFF_FACTOR", "1.0"))
 
 RESULTS_DIR = "results"
+RACES_DIR = os.path.join(RESULTS_DIR, "races")
+HORSES_DIR = os.path.join(RESULTS_DIR, "horses")
 
-RACES_DIR = os.path.join(
-    RESULTS_DIR,
-    "races",
-)
-
-HORSES_DIR = os.path.join(
-    RESULTS_DIR,
-    "horses",
-)
-
-RACE_RESULTS_FILE = os.path.join(
-    RACES_DIR,
-    "all_results.csv",
-)
-
-HORSE_MASTER_FILE = os.path.join(
-    HORSES_DIR,
-    "horse_master.csv",
-)
-
+RACE_RESULTS_FILE = os.path.join(RACES_DIR, "all_results.csv")
+HORSE_MASTER_FILE = os.path.join(HORSES_DIR, "horse_master.csv")
 HORSE_RATINGS_CACHE_FILE = os.path.join(
     HORSES_DIR,
     "horse_ratings_cache.csv",
 )
 
+PAYOUT_MODEL_CUTOFF = pd.Timestamp("2023-09-10")
 
-PAYOUT_MODEL_CUTOFF = pd.Timestamp(
-    "2023-09-10"
-)
-
-
-# ============================================================
-# OUTPUT COLUMNS
-# ============================================================
 
 HORSE_COLUMNS = [
     "horse_id",
@@ -194,7 +82,6 @@ HORSE_RATING_CACHE_COLUMNS = [
 RACE_COLUMNS = [
     "result_id",
     "race_id",
-
     "race_date",
     "racecourse_code",
     "racecourse_name",
@@ -209,11 +96,9 @@ RACE_COLUMNS = [
     "course",
     "prize_money_hkd",
     "field_size",
-
     "horse_id",
     "horse_number",
     "horse_name",
-
     "brand_number",
     "country_of_origin",
     "hemisphere_of_origin",
@@ -225,7 +110,6 @@ RACE_COLUMNS = [
     "sire",
     "dam",
     "dam_sire",
-
     "career_starts_before",
     "career_wins_before",
     "career_seconds_before",
@@ -233,57 +117,42 @@ RACE_COLUMNS = [
     "career_top3_before",
     "career_win_rate_before",
     "career_top3_rate_before",
-
     "prize_payout_percentage",
     "prize_money_won_this_race",
     "career_prize_money_before",
     "career_prize_money_after",
-
     "finishing_position",
     "is_winner",
     "is_top_three",
-
     "jockey",
     "trainer",
-
     "actual_weight",
     "declared_horse_weight",
     "draw",
     "margin",
     "finish_time",
     "odds",
-
     "horse_profile_url",
     "horse_profile_scraped_at",
     "race_url",
 ]
 
 
-# ============================================================
-# HTTP
-# ============================================================
-
 COMMON_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 "
-        "(Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 "
-        "(KHTML, like Gecko) "
-        "Chrome/140.0.0.0 "
-        "Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
     ),
     "Accept": (
-        "text/html,"
-        "application/xhtml+xml,"
-        "application/xml;q=0.9,"
-        "*/*;q=0.8"
+        "text/html,application/xhtml+xml,"
+        "application/xml;q=0.9,*/*;q=0.8"
     ),
     "Accept-Language": "en-US,en;q=0.9",
 }
 
 
 def create_http_session(pool_size=1):
-
     session = requests.Session()
 
     session.headers.update(
@@ -339,7 +208,6 @@ _thread_local = threading.local()
 
 
 def get_worker_session():
-
     session = getattr(
         _thread_local,
         "worker_session",
@@ -347,7 +215,6 @@ def get_worker_session():
     )
 
     if session is None:
-
         session = create_http_session(
             pool_size=2
         )
@@ -359,12 +226,7 @@ def get_worker_session():
     return session
 
 
-# ============================================================
-# GENERAL HELPERS
-# ============================================================
-
 def ensure_folders():
-
     os.makedirs(
         RACES_DIR,
         exist_ok=True,
@@ -380,11 +242,9 @@ def date_range(
     start_date,
     end_date,
 ):
-
     current = start_date
 
     while current <= end_date:
-
         yield current
 
         current += timedelta(
@@ -396,7 +256,6 @@ def choose_worker_count(
     configured_workers,
     task_count,
 ):
-
     if task_count <= 0:
         return 0
 
@@ -413,24 +272,20 @@ def choose_worker_count(
 
 
 def clean_text(value):
-
     if value is None:
         return ""
-
-    text = str(value).replace(
-        "\xa0",
-        " ",
-    )
 
     return re.sub(
         r"\s+",
         " ",
-        text,
+        str(value).replace(
+            "\xa0",
+            " ",
+        ),
     ).strip()
 
 
 def utc_now_string():
-
     return datetime.now(
         timezone.utc
     ).strftime(
@@ -439,7 +294,6 @@ def utc_now_string():
 
 
 def parse_integer(value):
-
     if value is None:
         return None
 
@@ -461,46 +315,28 @@ def parse_integer(value):
 
 
 def parse_float(value):
-
     if value is None:
         return None
 
-    text = clean_text(
-        value
-    ).replace(
-        ",",
-        "",
-    )
-
     try:
-        return float(text)
+        return float(
+            clean_text(value).replace(
+                ",",
+                "",
+            )
+        )
 
     except ValueError:
         return None
 
 
 def parse_prize_money(value):
-    """
-    Handles both:
-
-        HK$1,500,000
-        $1,500,000
-        HK$0
-        $0
-
-    Returns integer HKD amount.
-    """
-
     if not value:
         return None
 
-    text = clean_text(
-        value
-    )
-
     match = re.search(
         r"(?:HK\s*)?\$\s*([\d,]+)",
-        text,
+        clean_text(value),
         re.I,
     )
 
@@ -508,11 +344,8 @@ def parse_prize_money(value):
         return None
 
     try:
-
         return int(
-            match.group(
-                1
-            ).replace(
+            match.group(1).replace(
                 ",",
                 "",
             )
@@ -523,7 +356,6 @@ def parse_prize_money(value):
 
 
 def extract_horse_id(href):
-
     if not href:
         return ""
 
@@ -533,16 +365,16 @@ def extract_horse_id(href):
         re.I,
     )
 
-    if not match:
-        return ""
-
-    return clean_text(
-        match.group(1)
+    return (
+        clean_text(
+            match.group(1)
+        )
+        if match
+        else ""
     )
 
 
 def clean_finish_time(value):
-
     text = clean_text(
         value
     )
@@ -563,10 +395,6 @@ def clean_finish_time(value):
 
     return text
 
-
-# ============================================================
-# HORSE AGE
-# ============================================================
 
 SOUTHERN_HEMISPHERE_ORIGINS = {
     "AUS",
@@ -592,7 +420,6 @@ NORTHERN_HEMISPHERE_ORIGINS = {
 def get_hemisphere_of_origin(
     country_of_origin,
 ):
-
     country = clean_text(
         country_of_origin
     ).upper()
@@ -614,42 +441,24 @@ def get_hemisphere_of_origin(
     return "Other"
 
 
-def is_southern_hemisphere_horse(
-    country_of_origin,
-):
-
-    return (
-        get_hemisphere_of_origin(
-            country_of_origin
-        )
-        ==
-        "Southern"
-    )
-
-
 def get_official_horse_birthday(
     country_of_origin,
 ):
-
-    if is_southern_hemisphere_horse(
-        country_of_origin
-    ):
-        return (
-            8,
-            1,
-        )
-
     return (
-        1,
-        1,
+        (8, 1)
+        if (
+            get_hemisphere_of_origin(
+                country_of_origin
+            )
+            ==
+            "Southern"
+        )
+        else
+        (1, 1)
     )
 
 
 def parse_date_only(value):
-
-    if value is None:
-        return None
-
     text = clean_text(
         value
     )
@@ -663,10 +472,11 @@ def parse_date_only(value):
         utc=True,
     )
 
-    if pd.isna(parsed):
-        return None
-
-    return parsed.date()
+    return (
+        None
+        if pd.isna(parsed)
+        else parsed.date()
+    )
 
 
 def infer_horse_birth_year(
@@ -674,13 +484,9 @@ def infer_horse_birth_year(
     country_of_origin,
     profile_scraped_at,
 ):
-
     age = parse_integer(
         current_age
     )
-
-    if age is None:
-        return None
 
     scraped_date = (
         parse_date_only(
@@ -688,36 +494,36 @@ def infer_horse_birth_year(
         )
     )
 
-    if scraped_date is None:
+    if (
+        age is None
+        or
+        scraped_date is None
+    ):
         return None
 
     (
-        birthday_month,
-        birthday_day,
+        month,
+        day,
     ) = get_official_horse_birthday(
         country_of_origin
     )
 
-    official_birthday = (
+    birthday_this_year = (
         scraped_date.replace(
-            month=birthday_month,
-            day=birthday_day,
+            month=month,
+            day=day,
         )
     )
 
-    if scraped_date < official_birthday:
-
-        reference_year = (
-            scraped_date.year
-            -
-            1
+    reference_year = (
+        scraped_date.year - 1
+        if (
+            scraped_date
+            <
+            birthday_this_year
         )
-
-    else:
-
-        reference_year = (
-            scraped_date.year
-        )
+        else scraped_date.year
+    )
 
     return (
         reference_year
@@ -732,7 +538,6 @@ def calculate_horse_age_at_race(
     profile_scraped_at,
     race_date,
 ):
-
     birth_year = (
         infer_horse_birth_year(
             current_age,
@@ -741,19 +546,20 @@ def calculate_horse_age_at_race(
         )
     )
 
-    if birth_year is None:
-        return None
-
     race_date = parse_date_only(
         race_date
     )
 
-    if race_date is None:
+    if (
+        birth_year is None
+        or
+        race_date is None
+    ):
         return None
 
     (
-        birthday_month,
-        birthday_day,
+        month,
+        day,
     ) = get_official_horse_birthday(
         country_of_origin
     )
@@ -768,23 +574,19 @@ def calculate_horse_age_at_race(
         race_date.month,
         race_date.day,
     ) < (
-        birthday_month,
-        birthday_day,
+        month,
+        day,
     ):
         age -= 1
 
-    if age < 0:
-        return None
+    return (
+        age
+        if age >= 0
+        else None
+    )
 
-    return age
-
-
-# ============================================================
-# URLS
-# ============================================================
 
 def ensure_horse_option_1(url):
-
     url = clean_text(
         url
     )
@@ -801,7 +603,6 @@ def ensure_horse_option_1(url):
             key,
             value,
         )
-
         for (
             key,
             value,
@@ -809,10 +610,11 @@ def ensure_horse_option_1(url):
             parts.query,
             keep_blank_values=True,
         )
-
-        if key.lower()
-        !=
-        "option"
+        if (
+            key.lower()
+            !=
+            "option"
+        )
     ]
 
     query_pairs.append(
@@ -840,7 +642,6 @@ def build_url(
     racecourse=None,
     race_no=None,
 ):
-
     url = (
         f"{BASE_URL}"
         f"?racedate="
@@ -848,14 +649,12 @@ def build_url(
     )
 
     if racecourse:
-
         url += (
             f"&racecourse="
             f"{racecourse}"
         )
 
     if race_no:
-
         url += (
             f"&RaceNo="
             f"{race_no}"
@@ -864,8 +663,9 @@ def build_url(
     return url
 
 
-def build_horse_url(horse_id):
-
+def build_horse_url(
+    horse_id,
+):
     return ensure_horse_option_1(
         f"{HORSE_BASE_URL}"
         f"?horseid="
@@ -873,35 +673,30 @@ def build_horse_url(horse_id):
     )
 
 
-# ============================================================
-# REQUESTS
-# ============================================================
-
 def request_race_page(
     race_date,
     racecourse=None,
     race_no=None,
 ):
-
     url = build_url(
         race_date,
         racecourse,
         race_no,
     )
 
-    session = (
-        get_worker_session()
-    )
-
     try:
-
-        response = session.get(
-            url,
-            timeout=REQUEST_TIMEOUT,
+        response = (
+            get_worker_session()
+            .get(
+                url,
+                timeout=
+                    REQUEST_TIMEOUT,
+            )
         )
 
         print(
-            f"GET {url} "
+            f"GET "
+            f"{url} "
             f"-> "
             f"{response.status_code}"
         )
@@ -911,11 +706,10 @@ def request_race_page(
         return response
 
     except requests.RequestException as exc:
-
         print(
-            "Race request failed:",
-            url,
-            exc,
+            f"Race request failed "
+            f"{url}: "
+            f"{exc}"
         )
 
         return None
@@ -924,22 +718,19 @@ def request_race_page(
 def request_horse_page(
     horse_id,
 ):
-
     url = build_horse_url(
         horse_id
     )
 
-    session = (
-        get_worker_session()
-    )
-
     try:
-
-        response = session.get(
-            url,
-            timeout=
-                HORSE_REQUEST_TIMEOUT,
-            allow_redirects=True,
+        response = (
+            get_worker_session()
+            .get(
+                url,
+                timeout=
+                    HORSE_REQUEST_TIMEOUT,
+                allow_redirects=True,
+            )
         )
 
         print(
@@ -954,22 +745,16 @@ def request_horse_page(
         return response
 
     except requests.RequestException as exc:
-
         print(
             f"Horse request failed "
-            f"{horse_id}:",
-            exc,
+            f"{horse_id}: "
+            f"{exc}"
         )
 
         return None
 
 
-# ============================================================
-# MEETING DETECTION
-# ============================================================
-
 def detect_meeting(html):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -990,21 +775,17 @@ def detect_meeting(html):
     )
 
     if "Happy Valley" in text:
-
         return {
             "racecourse_code":
                 "HV",
-
             "racecourse_name":
                 "Happy Valley",
         }
 
     if "Sha Tin" in text:
-
         return {
             "racecourse_code":
                 "ST",
-
             "racecourse_name":
                 "Sha Tin",
         }
@@ -1013,7 +794,6 @@ def detect_meeting(html):
 
 
 def detect_race_numbers(html):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -1022,7 +802,6 @@ def detect_race_numbers(html):
     race_numbers = set()
 
     for text in soup.stripped_strings:
-
         match = re.search(
             r"\bRACE\s+(\d+)\b",
             text,
@@ -1030,7 +809,6 @@ def detect_race_numbers(html):
         )
 
         if match:
-
             race_numbers.add(
                 int(
                     match.group(1)
@@ -1041,7 +819,6 @@ def detect_race_numbers(html):
         "a",
         href=True,
     ):
-
         match = re.search(
             r"[?&]RaceNo=(\d+)",
             link.get(
@@ -1052,7 +829,6 @@ def detect_race_numbers(html):
         )
 
         if match:
-
             race_numbers.add(
                 int(
                     match.group(1)
@@ -1064,12 +840,7 @@ def detect_race_numbers(html):
     )
 
 
-# ============================================================
-# RACE HEADER
-# ============================================================
-
 def get_cell_texts(row):
-
     return [
         clean_text(
             cell.get_text(
@@ -1077,7 +848,6 @@ def get_cell_texts(row):
                 strip=True,
             )
         )
-
         for cell in row.find_all(
             [
                 "td",
@@ -1091,7 +861,6 @@ def extract_label_value(
     cells,
     label,
 ):
-
     pattern = re.compile(
         rf"\b"
         rf"{re.escape(label)}"
@@ -1102,7 +871,6 @@ def extract_label_value(
     for index, cell in enumerate(
         cells
     ):
-
         if not pattern.search(
             cell
         ):
@@ -1120,11 +888,9 @@ def extract_label_value(
             index + 1,
             len(cells),
         ):
-
             if cells[
                 next_index
             ]:
-
                 return cells[
                     next_index
                 ]
@@ -1140,7 +906,6 @@ def extract_race_metadata(
     race_no,
     race_url,
 ):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -1153,70 +918,54 @@ def extract_race_metadata(
                 f"{meeting_date.strftime('%Y%m%d')}_"
                 f"R{race_no:02d}"
             ),
-
         "race_date":
             meeting_date.strftime(
                 "%Y-%m-%d"
             ),
-
         "racecourse_code":
             racecourse_code,
-
         "racecourse_name":
             racecourse_name,
-
         "race_number":
             race_no,
-
         "race_index":
             None,
-
         "race_name":
             "",
-
-        # Diagnostic only.
-        # Final race class comes from
-        # horse form history.
         "race_class":
             "",
-
         "distance_m":
             None,
-
         "rating_band":
             "",
-
         "going":
             "",
-
         "surface":
             "",
-
         "course":
             "",
-
         "prize_money_hkd":
             None,
-
         "race_url":
             race_url,
     }
 
-    header = soup.select_one(
-        "table.race_tab"
+    header = (
+        soup.select_one(
+            "table.race_tab"
+        )
+        or
+        soup.select_one(
+            ".race_tab"
+        )
     )
 
     if header is None:
-
-        header = soup.select_one(
-            ".race_tab"
-        )
-
-    if header is None:
-
         print(
-            "WARNING: "
-            "race header not found"
+            f"NO RACE HEADER: "
+            f"{meeting_date} "
+            f"{racecourse_code} "
+            f"R{race_no}"
         )
 
         return metadata
@@ -1236,7 +985,6 @@ def extract_race_metadata(
     )
 
     if race_match:
-
         metadata[
             "race_number"
         ] = int(
@@ -1249,12 +997,9 @@ def extract_race_metadata(
             race_match.group(2)
         )
 
-    rows = header.find_all(
+    for row in header.find_all(
         "tr"
-    )
-
-    for row in rows:
-
+    ):
         cells = get_cell_texts(
             row
         )
@@ -1263,7 +1008,6 @@ def extract_race_metadata(
             continue
 
         for cell in cells:
-
             class_match = re.search(
                 r"\b"
                 r"(Class\s+\d+)"
@@ -1273,7 +1017,6 @@ def extract_race_metadata(
             )
 
             if class_match:
-
                 metadata[
                     "race_class"
                 ] = (
@@ -1298,12 +1041,10 @@ def extract_race_metadata(
                 ]
                 is None
             ):
-
                 metadata[
                     "distance_m"
                 ] = int(
-                    distance_match
-                    .group(1)
+                    distance_match.group(1)
                 )
 
             rating_match = re.search(
@@ -1320,7 +1061,6 @@ def extract_race_metadata(
                     "rating_band"
                 ]
             ):
-
                 metadata[
                     "rating_band"
                 ] = (
@@ -1333,7 +1073,6 @@ def extract_race_metadata(
             )
 
             if prize is not None:
-
                 metadata[
                     "prize_money_hkd"
                 ] = prize
@@ -1344,7 +1083,6 @@ def extract_race_metadata(
         )
 
         if going:
-
             metadata[
                 "going"
             ] = going
@@ -1355,7 +1093,6 @@ def extract_race_metadata(
         )
 
         if course:
-
             metadata[
                 "course"
             ] = course
@@ -1363,7 +1100,6 @@ def extract_race_metadata(
         for index, cell in enumerate(
             cells
         ):
-
             if not re.search(
                 r"\bCourse\s*:",
                 cell,
@@ -1374,7 +1110,6 @@ def extract_race_metadata(
             for candidate in cells[
                 :index
             ]:
-
                 candidate = clean_text(
                     candidate
                 )
@@ -1408,7 +1143,6 @@ def extract_race_metadata(
         ]
         is None
     ):
-
         metadata[
             "prize_money_hkd"
         ] = parse_prize_money(
@@ -1418,7 +1152,6 @@ def extract_race_metadata(
     if not metadata[
         "race_class"
     ]:
-
         match = re.search(
             r"\b"
             r"(Class\s+\d+)"
@@ -1428,12 +1161,10 @@ def extract_race_metadata(
         )
 
         if match:
-
             metadata[
                 "race_class"
             ] = (
-                match
-                .group(1)
+                match.group(1)
                 .title()
             )
 
@@ -1443,7 +1174,6 @@ def extract_race_metadata(
         ]
         is None
     ):
-
         match = re.search(
             r"\b"
             r"(\d{3,4})"
@@ -1453,7 +1183,6 @@ def extract_race_metadata(
         )
 
         if match:
-
             metadata[
                 "distance_m"
             ] = int(
@@ -1466,8 +1195,11 @@ def extract_race_metadata(
         ]
     ).upper()
 
-    if "TURF" in course_upper:
-
+    if (
+        "TURF"
+        in
+        course_upper
+    ):
         metadata[
             "surface"
         ] = "TURF"
@@ -1481,7 +1213,6 @@ def extract_race_metadata(
         in
         course_upper
     ):
-
         metadata[
             "surface"
         ] = (
@@ -1491,26 +1222,22 @@ def extract_race_metadata(
     print(
         "PARSED RACE:",
         {
+            "race_date":
+                metadata[
+                    "race_date"
+                ],
             "race_number":
                 metadata[
                     "race_number"
                 ],
-
             "race_index":
                 metadata[
                     "race_index"
                 ],
-
-            "race_name":
-                metadata[
-                    "race_name"
-                ],
-
             "prize_money_hkd":
                 metadata[
                     "prize_money_hkd"
                 ],
-
             "header_race_class":
                 metadata[
                     "race_class"
@@ -1521,10 +1248,6 @@ def extract_race_metadata(
     return metadata
 
 
-# ============================================================
-# RESULT TABLE
-# ============================================================
-
 RESULT_HEADER_ALIASES = {
     "finishing_position": {
         "pla",
@@ -1533,55 +1256,45 @@ RESULT_HEADER_ALIASES = {
         "position",
         "pos",
     },
-
     "horse_number": {
         "horse no",
         "horse number",
         "horse num",
     },
-
     "horse": {
         "horse",
         "horse name",
     },
-
     "jockey": {
         "jockey",
     },
-
     "trainer": {
         "trainer",
     },
-
     "actual_weight": {
         "act wt",
         "actual wt",
         "actual weight",
     },
-
     "declared_horse_weight": {
         "declar horse wt",
         "declared horse wt",
         "declar horse weight",
         "declared horse weight",
     },
-
     "draw": {
         "dr",
         "draw",
     },
-
     "margin": {
         "lbw",
         "margin",
         "lengths behind winner",
     },
-
     "finish_time": {
         "finish time",
         "finishing time",
     },
-
     "odds": {
         "win odds",
         "winning odds",
@@ -1591,16 +1304,17 @@ RESULT_HEADER_ALIASES = {
 
 
 def normalise_result_header(
-    value
+    value,
 ):
-
-    text = clean_text(
-        value
-    ).lower()
-
-    text = text.replace(
-        "&",
-        " and ",
+    text = (
+        clean_text(
+            value
+        )
+        .lower()
+        .replace(
+            "&",
+            " and ",
+        )
     )
 
     text = re.sub(
@@ -1623,17 +1337,13 @@ def normalise_result_header(
 
 
 def identify_result_header(
-    value
+    value,
 ):
-
     normalised = (
         normalise_result_header(
             value
         )
     )
-
-    if not normalised:
-        return None
 
     for (
         canonical_name,
@@ -1641,25 +1351,21 @@ def identify_result_header(
     ) in (
         RESULT_HEADER_ALIASES.items()
     ):
-
         if normalised in aliases:
-
             return canonical_name
 
     return None
 
 
 def build_result_column_map(
-    table
+    table,
 ):
-
     best_map = {}
     best_score = 0
 
     for row in table.find_all(
         "tr"
     ):
-
         cells = row.find_all(
             [
                 "th",
@@ -1667,52 +1373,48 @@ def build_result_column_map(
             ]
         )
 
-        if not cells:
-            continue
-
         current_map = {}
 
         for index, cell in enumerate(
             cells
         ):
-
-            heading = clean_text(
-                cell.get_text(
-                    " ",
-                    strip=True,
-                )
-            )
-
-            canonical_name = (
+            canonical = (
                 identify_result_header(
-                    heading
+                    cell.get_text(
+                        " ",
+                        strip=True,
+                    )
                 )
             )
 
             if (
-                canonical_name
+                canonical
                 and
-                canonical_name
+                canonical
                 not in current_map
             ):
-
                 current_map[
-                    canonical_name
+                    canonical
                 ] = index
 
-        score = len(
-            current_map
-        )
+        if (
+            len(current_map)
+            >
+            best_score
+        ):
+            best_score = len(
+                current_map
+            )
 
-        if score > best_score:
+            best_map = (
+                current_map
+            )
 
-            best_score = score
-            best_map = current_map
-
-    if best_score < 5:
-        return {}
-
-    return best_map
+    return (
+        best_map
+        if best_score >= 5
+        else {}
+    )
 
 
 def get_result_cell(
@@ -1720,7 +1422,6 @@ def get_result_cell(
     column_map,
     field_name,
 ):
-
     index = column_map.get(
         field_name
     )
@@ -1744,21 +1445,21 @@ def get_result_cell_text(
     column_map,
     field_name,
 ):
-
     cell = get_result_cell(
         cells,
         column_map,
         field_name,
     )
 
-    if cell is None:
-        return ""
-
-    return clean_text(
-        cell.get_text(
-            " ",
-            strip=True,
+    return (
+        clean_text(
+            cell.get_text(
+                " ",
+                strip=True,
+            )
         )
+        if cell is not None
+        else ""
     )
 
 
@@ -1766,24 +1467,27 @@ def extract_results(
     html,
     race_metadata,
 ):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
     )
 
-    table = soup.select_one(
-        "table.performance"
-    )
-
-    if table is None:
-
-        table = soup.select_one(
+    table = (
+        soup.select_one(
+            "table.performance"
+        )
+        or
+        soup.select_one(
             ".performance table"
         )
+    )
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    # NO RESULTS TABLE IS A NORMAL SKIP.
+    # --------------------------------------------------------
 
     if table is None:
-
         return None
 
     column_map = (
@@ -1818,7 +1522,6 @@ def extract_results(
     for row in table.find_all(
         "tr"
     ):
-
         cells = row.find_all(
             "td"
         )
@@ -1847,19 +1550,15 @@ def extract_results(
         horse_link = None
 
         if horse_cell is not None:
-
-            horse_link = (
-                horse_cell.find(
-                    "a",
-                    href=re.compile(
-                        r"horse",
-                        re.I,
-                    ),
-                )
+            horse_link = horse_cell.find(
+                "a",
+                href=re.compile(
+                    r"horse",
+                    re.I,
+                ),
             )
 
         if horse_link is None:
-
             horse_link = row.find(
                 "a",
                 href=re.compile(
@@ -1868,18 +1567,16 @@ def extract_results(
                 ),
             )
 
-        horse_id = ""
-
-        if horse_link is not None:
-
-            horse_id = (
-                extract_horse_id(
-                    horse_link.get(
-                        "href",
-                        "",
-                    )
+        horse_id = (
+            extract_horse_id(
+                horse_link.get(
+                    "href",
+                    "",
                 )
             )
+            if horse_link
+            else ""
+        )
 
         if (
             not horse_id
@@ -1898,6 +1595,9 @@ def extract_results(
             )
         )
 
+    if not candidate_rows:
+        return None
+
     field_size = len(
         candidate_rows
     )
@@ -1915,7 +1615,6 @@ def extract_results(
         horse_url = ""
 
         if horse_link is not None:
-
             horse_url = (
                 ensure_horse_option_1(
                     urljoin(
@@ -1937,7 +1636,6 @@ def extract_results(
         )
 
         if horse_link is not None:
-
             horse_name = clean_text(
                 horse_link.get_text(
                     " ",
@@ -1946,7 +1644,6 @@ def extract_results(
             )
 
         elif horse_cell is not None:
-
             horse_name = clean_text(
                 horse_cell.get_text(
                     " ",
@@ -2011,8 +1708,8 @@ def extract_results(
                     "race_name"
                 ],
 
-            # Final class comes from
-            # horse form page.
+            # IMPORTANT:
+            # Final class comes from horse form history.
             "race_class":
                 "",
 
@@ -2151,17 +1848,14 @@ def extract_results(
                 ],
         })
 
-    if not results:
-        return None
-
-    return pd.DataFrame(
-        results
+    return (
+        pd.DataFrame(
+            results
+        )
+        if results
+        else None
     )
 
-
-# ============================================================
-# HORSE PROFILE
-# ============================================================
 
 PROFILE_LABELS = [
     "Country of Origin / Age",
@@ -2185,24 +1879,22 @@ def extract_profile_value(
     text,
     label,
 ):
-
     other_labels = [
         item
-
         for item in (
             PROFILE_LABELS
             +
             PROFILE_SECTION_STOP_LABELS
         )
-
-        if item.lower()
-        !=
-        label.lower()
+        if (
+            item.lower()
+            !=
+            label.lower()
+        )
     ]
 
     stop_pattern = "|".join(
         re.escape(item)
-
         for item in sorted(
             other_labels,
             key=len,
@@ -2226,11 +1918,12 @@ def extract_profile_value(
         re.I,
     )
 
-    if not match:
-        return ""
-
-    return clean_text(
-        match.group(1)
+    return (
+        clean_text(
+            match.group(1)
+        )
+        if match
+        else ""
     )
 
 
@@ -2238,12 +1931,12 @@ def extract_profile_value_any(
     text,
     labels,
 ):
-
     for label in labels:
-
-        value = extract_profile_value(
-            text,
-            label,
+        value = (
+            extract_profile_value(
+                text,
+                label,
+            )
         )
 
         if value:
@@ -2258,7 +1951,6 @@ def extract_horse_profile(
     profile_url,
     fallback_name="",
 ):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -2273,7 +1965,6 @@ def extract_horse_profile(
 
     profile = {
         column: ""
-
         for column in
         HORSE_COLUMNS
     }
@@ -2306,7 +1997,6 @@ def extract_horse_profile(
     )
 
     if heading_match:
-
         name = clean_text(
             heading_match.group(1)
         )
@@ -2316,7 +2006,6 @@ def extract_horse_profile(
             and
             len(name) <= 80
         ):
-
             profile[
                 "horse_name"
             ] = name
@@ -2338,10 +2027,8 @@ def extract_horse_profile(
     )
 
     if origin_age:
-
         parts = [
             clean_text(item)
-
             for item in
             origin_age.split(
                 "/",
@@ -2350,31 +2037,26 @@ def extract_horse_profile(
         ]
 
         if parts:
-
             profile[
                 "country_of_origin"
             ] = parts[0]
 
         if len(parts) >= 2:
-
             age = parse_integer(
                 parts[1]
             )
 
             if age is not None:
-
                 profile[
                     "horse_age"
                 ] = age
 
     profile[
         "hemisphere_of_origin"
-    ] = (
-        get_hemisphere_of_origin(
-            profile.get(
-                "country_of_origin",
-                "",
-            )
+    ] = get_hemisphere_of_origin(
+        profile.get(
+            "country_of_origin",
+            "",
         )
     )
 
@@ -2386,10 +2068,8 @@ def extract_horse_profile(
     )
 
     if colour_sex:
-
         parts = [
             clean_text(item)
-
             for item in
             colour_sex.rsplit(
                 "/",
@@ -2398,13 +2078,11 @@ def extract_horse_profile(
         ]
 
         if parts:
-
             profile[
                 "horse_colour"
             ] = parts[0]
 
         if len(parts) >= 2:
-
             profile[
                 "horse_sex"
             ] = parts[1]
@@ -2430,7 +2108,7 @@ def extract_horse_profile(
         "Dam's Sire",
     )
 
-    useful_fields = [
+    useful = [
         profile.get(
             "country_of_origin"
         ),
@@ -2453,10 +2131,7 @@ def extract_horse_profile(
 
     success = any(
         clean_text(value)
-
-        for value in
-        useful_fields
-
+        for value in useful
         if value is not None
     )
 
@@ -2465,7 +2140,6 @@ def extract_horse_profile(
     ] = success
 
     if success:
-
         profile[
             "profile_scraped_at"
         ] = utc_now_string()
@@ -2473,32 +2147,30 @@ def extract_horse_profile(
     return profile
 
 
-# ============================================================
-# HORSE MASTER
-# ============================================================
-
 def load_horse_master():
-
     horse_master = {}
     age_refresh_pending = set()
 
     if not os.path.exists(
         HORSE_MASTER_FILE
     ):
-
         return (
             horse_master,
             age_refresh_pending,
         )
 
     try:
-
         df = pd.read_csv(
             HORSE_MASTER_FILE,
             dtype=object,
         ).fillna("")
 
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Could not read "
+            f"horse master: "
+            f"{exc}"
+        )
 
         return (
             horse_master,
@@ -2512,12 +2184,12 @@ def load_horse_master():
     )
 
     for column in HORSE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = ""
+            df[
+                column
+            ] = ""
 
     for _, row in df.iterrows():
-
         horse_id = clean_text(
             row.get(
                 "horse_id",
@@ -2534,19 +2206,16 @@ def load_horse_master():
                     column,
                     "",
                 )
-
             for column in
             HORSE_COLUMNS
         }
 
         record[
             "hemisphere_of_origin"
-        ] = (
-            get_hemisphere_of_origin(
-                record.get(
-                    "country_of_origin",
-                    "",
-                )
+        ] = get_hemisphere_of_origin(
+            record.get(
+                "country_of_origin",
+                "",
             )
         )
 
@@ -2555,7 +2224,6 @@ def load_horse_master():
         ] = record
 
         if not had_age:
-
             age_refresh_pending.add(
                 horse_id
             )
@@ -2569,7 +2237,6 @@ def load_horse_master():
 def save_horse_master(
     horse_master,
 ):
-
     if not horse_master:
         return
 
@@ -2580,9 +2247,10 @@ def save_horse_master(
     )
 
     for column in HORSE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = ""
+            df[
+                column
+            ] = ""
 
     df = (
         df[
@@ -2608,7 +2276,6 @@ def save_horse_master(
 def horse_profile_is_scraped(
     horse,
 ):
-
     if not horse:
         return False
 
@@ -2619,8 +2286,7 @@ def horse_profile_is_scraped(
                 "",
             )
         ).lower()
-        in
-        {
+        in {
             "true",
             "1",
             "yes",
@@ -2632,7 +2298,6 @@ def merge_horse_profile(
     existing,
     new_profile,
 ):
-
     if not existing:
         return new_profile
 
@@ -2650,7 +2315,6 @@ def merge_horse_profile(
     )
 
     for column in HORSE_COLUMNS:
-
         value = new_profile.get(
             column,
             "",
@@ -2661,13 +2325,13 @@ def merge_horse_profile(
             "profile_scraped_at",
             "profile_url",
         }:
-
             merged[
                 column
             ] = value
 
-        elif clean_text(value):
-
+        elif clean_text(
+            value
+        ):
             merged[
                 column
             ] = value
@@ -2675,26 +2339,19 @@ def merge_horse_profile(
     return merged
 
 
-# ============================================================
-# HORSE FORM / RATINGS
-# ============================================================
-
 HORSE_FORM_HEADER_ALIASES = {
     "race_index": {
         "race index",
         "race no index",
     },
-
     "date": {
         "date",
         "race date",
     },
-
     "race_class": {
         "race class",
         "class",
     },
-
     "rating": {
         "rtg",
         "rating",
@@ -2705,7 +2362,6 @@ HORSE_FORM_HEADER_ALIASES = {
 def normalise_horse_form_header(
     value,
 ):
-
     text = clean_text(
         value
     ).lower()
@@ -2732,7 +2388,6 @@ def normalise_horse_form_header(
 def identify_horse_form_header(
     value,
 ):
-
     normalised = (
         normalise_horse_form_header(
             value
@@ -2745,7 +2400,6 @@ def identify_horse_form_header(
     ) in (
         HORSE_FORM_HEADER_ALIASES.items()
     ):
-
         if normalised in aliases:
             return canonical
 
@@ -2755,26 +2409,21 @@ def identify_horse_form_header(
 def build_horse_form_column_map(
     table,
 ):
-
     best_map = {}
 
     for row in table.find_all(
         "tr"
     ):
-
-        cells = row.find_all(
-            [
-                "th",
-                "td",
-            ]
-        )
-
         current = {}
 
         for index, cell in enumerate(
-            cells
+            row.find_all(
+                [
+                    "th",
+                    "td",
+                ]
+            )
         ):
-
             canonical = (
                 identify_horse_form_header(
                     cell.get_text(
@@ -2785,15 +2434,15 @@ def build_horse_form_column_map(
             )
 
             if canonical:
-
                 current[
                     canonical
                 ] = index
 
-        if len(current) > len(
-            best_map
+        if (
+            len(current)
+            >
+            len(best_map)
         ):
-
             best_map = current
 
     required = {
@@ -2803,22 +2452,21 @@ def build_horse_form_column_map(
         "rating",
     }
 
-    if not required.issubset(
+    return (
         best_map
-    ):
-        return {}
-
-    return best_map
+        if required.issubset(
+            best_map
+        )
+        else {}
+    )
 
 
 def find_horse_form_table(
     soup,
 ):
-
     for table in soup.find_all(
         "table"
     ):
-
         column_map = (
             build_horse_form_column_map(
                 table
@@ -2826,7 +2474,6 @@ def find_horse_form_table(
         )
 
         if column_map:
-
             return (
                 table,
                 column_map,
@@ -2843,7 +2490,6 @@ def get_form_cell_text(
     column_map,
     field_name,
 ):
-
     index = column_map.get(
         field_name
     )
@@ -2868,7 +2514,6 @@ def get_form_cell_text(
 def parse_hkjc_form_date(
     value,
 ):
-
     text = clean_text(
         value
     )
@@ -2878,9 +2523,7 @@ def parse_hkjc_form_date(
         "%d-%m-%Y",
         "%Y-%m-%d",
     ]:
-
         try:
-
             return datetime.strptime(
                 text,
                 fmt,
@@ -2895,21 +2538,20 @@ def parse_hkjc_form_date(
         dayfirst=True,
     )
 
-    if pd.isna(parsed):
-        return None
-
-    return parsed.date()
+    return (
+        None
+        if pd.isna(parsed)
+        else parsed.date()
+    )
 
 
 def extract_header_rating(
     text,
 ):
-
     for label in [
         "Last Rating",
         "Current Rating",
     ]:
-
         match = re.search(
             rf"\b"
             rf"{re.escape(label)}"
@@ -2920,7 +2562,6 @@ def extract_header_rating(
         )
 
         if match:
-
             return int(
                 match.group(1)
             )
@@ -2933,7 +2574,6 @@ def extract_horse_rating_history(
     horse_id,
     source_url,
 ):
-
     soup = BeautifulSoup(
         html,
         "html.parser",
@@ -2960,7 +2600,6 @@ def extract_horse_rating_history(
     )
 
     if table is None:
-
         return pd.DataFrame(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
@@ -2971,7 +2610,6 @@ def extract_horse_rating_history(
     for row in table.find_all(
         "tr"
     ):
-
         cells = row.find_all(
             "td"
         )
@@ -3046,33 +2684,33 @@ def extract_horse_rating_history(
                 None,
 
             "rating_source_url":
-                source_url,
+                ensure_horse_option_1(
+                    source_url
+                ),
 
             "rating_scraped_at":
                 utc_now_string(),
         })
 
     if not records:
-
         return pd.DataFrame(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
         )
 
-    unique = {}
-
-    for record in records:
-
-        unique[
-            (
-                record[
-                    "race_date"
-                ],
-                record[
-                    "race_index"
-                ],
-            )
-        ] = record
+    unique = {
+        (
+            record[
+                "race_date"
+            ],
+            record[
+                "race_index"
+            ],
+        ):
+            record
+        for record in
+        records
+    }
 
     records = list(
         unique.values()
@@ -3093,13 +2731,11 @@ def extract_horse_rating_history(
     for index, record in enumerate(
         records
     ):
-
         if (
             index + 1
             <
             len(records)
         ):
-
             record[
                 "horse_rating_after"
             ] = records[
@@ -3109,7 +2745,6 @@ def extract_horse_rating_history(
             ]
 
         else:
-
             record[
                 "horse_rating_after"
             ] = latest_rating
@@ -3125,13 +2760,11 @@ def fetch_and_parse_horse(
     horse_id,
     horse_name,
 ):
-
     response = request_horse_page(
         horse_id
     )
 
     if response is None:
-
         return (
             horse_id,
             horse_name,
@@ -3168,29 +2801,27 @@ def fetch_and_parse_horse(
     )
 
 
-# ============================================================
-# RATING CACHE
-# ============================================================
-
 def load_horse_rating_cache():
-
     if not os.path.exists(
         HORSE_RATINGS_CACHE_FILE
     ):
-
         return pd.DataFrame(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
         )
 
     try:
-
         df = pd.read_csv(
             HORSE_RATINGS_CACHE_FILE,
             dtype=object,
         ).fillna("")
 
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Could not read "
+            f"horse rating cache: "
+            f"{exc}"
+        )
 
         return pd.DataFrame(
             columns=
@@ -3200,9 +2831,10 @@ def load_horse_rating_cache():
     for column in (
         HORSE_RATING_CACHE_COLUMNS
     ):
-
         if column not in df.columns:
-            df[column] = ""
+            df[
+                column
+            ] = ""
 
     return df[
         HORSE_RATING_CACHE_COLUMNS
@@ -3212,7 +2844,6 @@ def load_horse_rating_cache():
 def save_horse_rating_cache(
     cache_df,
 ):
-
     if cache_df is None:
         return
 
@@ -3221,12 +2852,12 @@ def save_horse_rating_cache(
     for column in (
         HORSE_RATING_CACHE_COLUMNS
     ):
-
         if column not in df.columns:
-            df[column] = ""
+            df[
+                column
+            ] = ""
 
     if not df.empty:
-
         df = df.drop_duplicates(
             subset=[
                 "horse_id",
@@ -3283,41 +2914,39 @@ def normalise_rating_key(
     race_date,
     race_index,
 ):
-
     horse_id = clean_text(
         horse_id
     )
 
-    race_date = parse_date_only(
+    parsed_date = parse_date_only(
         race_date
     )
 
-    race_index = parse_integer(
+    parsed_index = parse_integer(
         race_index
     )
 
     if (
         not horse_id
         or
-        race_date is None
+        parsed_date is None
         or
-        race_index is None
+        parsed_index is None
     ):
         return None
 
     return (
         horse_id,
-        race_date.strftime(
+        parsed_date.strftime(
             "%Y-%m-%d"
         ),
-        race_index,
+        parsed_index,
     )
 
 
 def build_rating_cache_lookup(
     cache_df,
 ):
-
     lookup = {}
 
     if (
@@ -3328,7 +2957,6 @@ def build_rating_cache_lookup(
         return lookup
 
     for _, row in cache_df.iterrows():
-
         key = normalise_rating_key(
             row.get(
                 "horse_id"
@@ -3374,20 +3002,16 @@ def replace_horse_in_rating_cache(
     horse_id,
     new_history,
 ):
-
     if cache_df is None:
-
         cache_df = pd.DataFrame(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
         )
 
     if cache_df.empty:
-
         remaining = cache_df
 
     else:
-
         remaining = cache_df[
             cache_df[
                 "horse_id"
@@ -3401,7 +3025,6 @@ def replace_horse_in_rating_cache(
         or
         new_history.empty
     ):
-
         return remaining.copy()
 
     return pd.concat(
@@ -3418,11 +3041,9 @@ def horse_form_rows_complete_for_results(
     horse_results,
     cache_lookup,
 ):
-
     valid = False
 
     for _, row in horse_results.iterrows():
-
         key = normalise_rating_key(
             horse_id,
             row.get(
@@ -3461,7 +3082,6 @@ def apply_rating_cache_to_results(
     results_df,
     cache_df,
 ):
-
     df = results_df.copy()
 
     lookup = (
@@ -3475,18 +3095,22 @@ def apply_rating_cache_to_results(
         "horse_rating_before",
         "horse_rating_after",
     ]:
-
         if column not in df.columns:
-            df[column] = None
+            df[
+                column
+            ] = None
 
-        df[column] = df[
+        df[
             column
-        ].astype(object)
+        ] = df[
+            column
+        ].astype(
+            object
+        )
 
     matched = 0
 
     for index, row in df.iterrows():
-
         key = normalise_rating_key(
             row.get(
                 "horse_id"
@@ -3533,16 +3157,12 @@ def apply_rating_cache_to_results(
         matched += 1
 
     print(
-        "Horse form rows matched:",
-        matched,
+        f"Horse form rows matched: "
+        f"{matched}"
     )
 
     return df
 
-
-# ============================================================
-# WHOLE-MONTH HORSE PHASE
-# ============================================================
 
 def ensure_horse_data(
     results_df,
@@ -3550,9 +3170,7 @@ def ensure_horse_data(
     age_refresh_pending,
     rating_cache_df,
 ):
-
     if results_df.empty:
-
         return (
             rating_cache_df,
             0,
@@ -3585,11 +3203,13 @@ def ensure_horse_data(
         )
     )
 
-    unique_horses = unique_horses[
+    unique_horses = (
         unique_horses[
-            "horse_id"
-        ].ne("")
-    ]
+            unique_horses[
+                "horse_id"
+            ].ne("")
+        ]
+    )
 
     cache_lookup = (
         build_rating_cache_lookup(
@@ -3600,7 +3220,6 @@ def ensure_horse_data(
     horses_to_fetch = []
 
     for _, row in unique_horses.iterrows():
-
         horse_id = row[
             "horse_id"
         ]
@@ -3612,8 +3231,10 @@ def ensure_horse_data(
             )
         )
 
-        existing = horse_master.get(
-            horse_id
+        existing = (
+            horse_master.get(
+                horse_id
+            )
         )
 
         need_profile = (
@@ -3626,13 +3247,15 @@ def ensure_horse_data(
             age_refresh_pending
         )
 
-        horse_results = results_df[
+        horse_results = (
             results_df[
-                "horse_id"
-            ].astype(str)
-            ==
-            horse_id
-        ]
+                results_df[
+                    "horse_id"
+                ].astype(str)
+                ==
+                horse_id
+            ]
+        )
 
         need_form = (
             not
@@ -3648,7 +3271,6 @@ def ensure_horse_data(
             or
             need_form
         ):
-
             horses_to_fetch.append(
                 (
                     horse_id,
@@ -3660,25 +3282,30 @@ def ensure_horse_data(
     print(
         "=" * 70
     )
+
     print(
         "PHASE 3 - HORSES"
     )
+
     print(
         "=" * 70
     )
 
     print(
         "Unique horses:",
-        len(unique_horses),
+        len(
+            unique_horses
+        ),
     )
 
     print(
         "Horse pages required:",
-        len(horses_to_fetch),
+        len(
+            horses_to_fetch
+        ),
     )
 
     if not horses_to_fetch:
-
         return (
             rating_cache_df,
             0,
@@ -3686,7 +3313,9 @@ def ensure_horse_data(
 
     workers = choose_worker_count(
         HORSE_WORKERS,
-        len(horses_to_fetch),
+        len(
+            horses_to_fetch
+        ),
     )
 
     print(
@@ -3697,7 +3326,8 @@ def ensure_horse_data(
     failures = 0
 
     with ThreadPoolExecutor(
-        max_workers=workers
+        max_workers=
+            workers
     ) as executor:
 
         futures = {
@@ -3720,7 +3350,6 @@ def ensure_horse_data(
         for future in as_completed(
             futures
         ):
-
             (
                 horse_id,
                 horse_name,
@@ -3729,7 +3358,6 @@ def ensure_horse_data(
             ]
 
             try:
-
                 (
                     returned_id,
                     _,
@@ -3738,19 +3366,18 @@ def ensure_horse_data(
                 ) = future.result()
 
             except Exception as exc:
-
                 failures += 1
 
                 print(
-                    "HORSE WORKER FAILED:",
-                    horse_id,
-                    exc,
+                    f"HORSE WORKER FAILED "
+                    f"{horse_id} "
+                    f"{horse_name}: "
+                    f"{exc}"
                 )
 
                 continue
 
             if returned_id != horse_id:
-
                 failures += 1
                 continue
 
@@ -3759,21 +3386,17 @@ def ensure_horse_data(
                 and
                 history is None
             ):
-
                 failures += 1
                 continue
 
             if profile is not None:
-
                 horse_master[
                     horse_id
-                ] = (
-                    merge_horse_profile(
-                        horse_master.get(
-                            horse_id
-                        ),
-                        profile,
-                    )
+                ] = merge_horse_profile(
+                    horse_master.get(
+                        horse_id
+                    ),
+                    profile,
                 )
 
                 if horse_profile_is_scraped(
@@ -3781,7 +3404,6 @@ def ensure_horse_data(
                         horse_id
                     )
                 ):
-
                     age_refresh_pending.discard(
                         horse_id
                     )
@@ -3791,7 +3413,6 @@ def ensure_horse_data(
                 and
                 not history.empty
             ):
-
                 rating_cache_df = (
                     replace_horse_in_rating_cache(
                         rating_cache_df,
@@ -3806,15 +3427,10 @@ def ensure_horse_data(
     )
 
 
-# ============================================================
-# STATIC HORSE ENRICHMENT
-# ============================================================
-
 def enrich_results_with_horse_master(
     results_df,
     horse_master,
 ):
-
     df = results_df.copy()
 
     mapping = {
@@ -3850,19 +3466,24 @@ def enrich_results_with_horse_master(
     }
 
     for target in mapping.values():
-
         if target not in df.columns:
-            df[target] = None
+            df[
+                target
+            ] = None
 
-        df[target] = df[
+        df[
             target
-        ].astype(object)
+        ] = df[
+            target
+        ].astype(
+            object
+        )
 
     if (
         "horse_age_at_race"
-        not in df.columns
+        not in
+        df.columns
     ):
-
         df[
             "horse_age_at_race"
         ] = None
@@ -3871,10 +3492,11 @@ def enrich_results_with_horse_master(
         "horse_age_at_race"
     ] = df[
         "horse_age_at_race"
-    ].astype(object)
+    ].astype(
+        object
+    )
 
     for index, row in df.iterrows():
-
         horse_id = clean_text(
             row.get(
                 "horse_id"
@@ -3892,7 +3514,6 @@ def enrich_results_with_horse_master(
             source,
             target,
         ) in mapping.items():
-
             df.at[
                 index,
                 target
@@ -3924,19 +3545,13 @@ def enrich_results_with_horse_master(
     return df
 
 
-# ============================================================
-# EXISTING RESULTS
-# ============================================================
-
 def load_existing_result_ids():
-
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
         return set()
 
     try:
-
         df = pd.read_csv(
             RACE_RESULTS_FILE,
             usecols=[
@@ -3961,19 +3576,20 @@ def append_results(
     results_df,
     existing_ids,
 ):
-
-    df = results_df[
-        ~results_df[
-            "result_id"
+    df = (
+        results_df[
+            ~results_df[
+                "result_id"
+            ]
+            .astype(str)
+            .isin(
+                existing_ids
+            )
         ]
-        .astype(str)
-        .isin(
-            existing_ids
-        )
-    ].copy()
+        .copy()
+    )
 
     if df.empty:
-
         print(
             "No new result rows."
         )
@@ -3981,15 +3597,16 @@ def append_results(
         return
 
     for column in RACE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = None
+            df[
+                column
+            ] = None
 
     df = df[
         RACE_COLUMNS
     ]
 
-    exists = os.path.exists(
+    file_exists = os.path.exists(
         RACE_RESULTS_FILE
     )
 
@@ -3997,7 +3614,7 @@ def append_results(
         RACE_RESULTS_FILE,
         mode="a",
         header=
-            not exists,
+            not file_exists,
         index=False,
     )
 
@@ -4016,16 +3633,25 @@ def append_results(
 def backfill_existing_results(
     horse_master,
 ):
-
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
         return
 
-    df = pd.read_csv(
-        RACE_RESULTS_FILE,
-        dtype=object,
-    ).fillna("")
+    try:
+        df = pd.read_csv(
+            RACE_RESULTS_FILE,
+            dtype=object,
+        ).fillna("")
+
+    except Exception as exc:
+        print(
+            f"Could not backfill "
+            f"existing results: "
+            f"{exc}"
+        )
+
+        return
 
     if df.empty:
         return
@@ -4038,9 +3664,10 @@ def backfill_existing_results(
     )
 
     for column in RACE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = None
+            df[
+                column
+            ] = None
 
     df[
         RACE_COLUMNS
@@ -4053,29 +3680,42 @@ def backfill_existing_results(
 def apply_rating_cache_to_existing_results_file(
     cache_df,
 ):
-
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
         return
 
-    df = pd.read_csv(
-        RACE_RESULTS_FILE,
-        dtype=object,
-    ).fillna("")
+    try:
+        df = pd.read_csv(
+            RACE_RESULTS_FILE,
+            dtype=object,
+        ).fillna("")
+
+    except Exception as exc:
+        print(
+            f"Could not apply "
+            f"rating cache to "
+            f"existing results: "
+            f"{exc}"
+        )
+
+        return
 
     if df.empty:
         return
 
-    df = apply_rating_cache_to_results(
-        df,
-        cache_df,
+    df = (
+        apply_rating_cache_to_results(
+            df,
+            cache_df,
+        )
     )
 
     for column in RACE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = None
+            df[
+                column
+            ] = None
 
     df[
         RACE_COLUMNS
@@ -4085,15 +3725,12 @@ def apply_rating_cache_to_existing_results_file(
     )
 
 
-# ============================================================
-# CAREER + PRIZE STATS
-# ============================================================
-
 def get_prize_payout_schedule(
     race_date,
 ):
-
-    if pd.isna(race_date):
+    if pd.isna(
+        race_date
+    ):
         return {}
 
     if (
@@ -4101,7 +3738,6 @@ def get_prize_payout_schedule(
         <
         PAYOUT_MODEL_CUTOFF
     ):
-
         return {
             1: 0.56,
             2: 0.21,
@@ -4123,10 +3759,10 @@ def get_prize_payout_schedule(
 def calculate_dead_heat_payout_percentages(
     df,
 ):
-
     output = pd.Series(
         0.0,
         index=df.index,
+        dtype="float64",
     )
 
     for (
@@ -4135,7 +3771,10 @@ def calculate_dead_heat_payout_percentages(
     ) in df.groupby(
         "race_id",
         sort=False,
+        dropna=False,
     ):
+        if race_group.empty:
+            continue
 
         race_date = race_group[
             "_race_date_sort"
@@ -4147,20 +3786,19 @@ def calculate_dead_heat_payout_percentages(
             )
         )
 
+        valid = race_group[
+            race_group[
+                "_finish_numeric"
+            ].notna()
+        ]
+
         for (
             finishing_position,
             position_group,
-        ) in (
-            race_group[
-                race_group[
-                    "_finish_numeric"
-                ].notna()
-            ]
-            .groupby(
-                "_finish_numeric"
-            )
+        ) in valid.groupby(
+            "_finish_numeric",
+            sort=True,
         ):
-
             position = int(
                 finishing_position
             )
@@ -4170,7 +3808,6 @@ def calculate_dead_heat_payout_percentages(
             )
 
             if count == 1:
-
                 percentage = (
                     schedule.get(
                         position,
@@ -4179,13 +3816,13 @@ def calculate_dead_heat_payout_percentages(
                 )
 
             else:
-
                 total = sum(
                     schedule.get(
-                        position + offset,
+                        position
+                        +
+                        offset,
                         0.0,
                     )
-
                     for offset in
                     range(count)
                 )
@@ -4204,16 +3841,25 @@ def calculate_dead_heat_payout_percentages(
 
 
 def calculate_historical_career_stats():
-
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
         return
 
-    df = pd.read_csv(
-        RACE_RESULTS_FILE,
-        dtype=object,
-    ).fillna("")
+    try:
+        df = pd.read_csv(
+            RACE_RESULTS_FILE,
+            dtype=object,
+        ).fillna("")
+
+    except Exception as exc:
+        print(
+            f"Could not calculate "
+            f"career stats: "
+            f"{exc}"
+        )
+
+        return
 
     if df.empty:
         return
@@ -4327,23 +3973,52 @@ def calculate_historical_career_stats():
             "_race_prize_numeric"
         ]
         *
-        df[
-            "prize_payout_percentage"
-        ]
+        pd.to_numeric(
+            df[
+                "prize_payout_percentage"
+            ],
+            errors="coerce",
+        ).fillna(0)
     ).round(2)
 
-    df = df.sort_values(
-        [
-            "horse_id",
-            "_race_date_sort",
-            "_race_number_sort",
-        ],
-        kind="stable",
+    sort_columns = [
+        "horse_id",
+        "_race_date_sort",
+        "_race_number_sort",
+    ]
+
+    if (
+        "race_index"
+        in
+        df.columns
+    ):
+        df[
+            "_race_index_sort"
+        ] = pd.to_numeric(
+            df[
+                "race_index"
+            ],
+            errors="coerce",
+        ).fillna(0)
+
+        sort_columns.append(
+            "_race_index_sort"
+        )
+
+    df = (
+        df.sort_values(
+            sort_columns,
+            kind="stable",
+        )
+        .reset_index(
+            drop=True
+        )
     )
 
     grouped = df.groupby(
         "horse_id",
         sort=False,
+        dropna=False,
     )
 
     for (
@@ -4371,7 +4046,6 @@ def calculate_historical_career_stats():
             "_is_top3",
         ),
     ]:
-
         df[
             output_column
         ] = (
@@ -4389,7 +4063,9 @@ def calculate_historical_career_stats():
     ] = (
         grouped[
             "prize_money_won_this_race"
-        ].cumsum()
+        ]
+        .cumsum()
+        .round(2)
     )
 
     df[
@@ -4402,11 +4078,28 @@ def calculate_historical_career_stats():
         df[
             "prize_money_won_this_race"
         ]
-    )
+    ).round(2)
 
-    starts = df[
-        "career_starts_before"
-    ]
+    starts = pd.to_numeric(
+        df[
+            "career_starts_before"
+        ],
+        errors="coerce",
+    ).fillna(0)
+
+    wins = pd.to_numeric(
+        df[
+            "career_wins_before"
+        ],
+        errors="coerce",
+    ).fillna(0)
+
+    top3 = pd.to_numeric(
+        df[
+            "career_top3_before"
+        ],
+        errors="coerce",
+    ).fillna(0)
 
     df[
         "career_win_rate_before"
@@ -4416,15 +4109,18 @@ def calculate_historical_career_stats():
         "career_top3_rate_before"
     ] = 0.0
 
-    valid = starts > 0
+    valid = (
+        starts
+        >
+        0
+    )
 
     df.loc[
         valid,
         "career_win_rate_before"
     ] = (
-        df.loc[
-            valid,
-            "career_wins_before"
+        wins[
+            valid
         ]
         /
         starts[
@@ -4436,9 +4132,8 @@ def calculate_historical_career_stats():
         valid,
         "career_top3_rate_before"
     ] = (
-        df.loc[
-            valid,
-            "career_top3_before"
+        top3[
+            valid
         ]
         /
         starts[
@@ -4447,7 +4142,8 @@ def calculate_historical_career_stats():
     ).round(4)
 
     df = df.sort_values(
-        "_original_order"
+        "_original_order",
+        kind="stable",
     )
 
     df = df.drop(
@@ -4455,6 +4151,7 @@ def calculate_historical_career_stats():
             "_original_order",
             "_race_date_sort",
             "_race_number_sort",
+            "_race_index_sort",
             "_finish_numeric",
             "_race_prize_numeric",
             "_is_start",
@@ -4467,9 +4164,10 @@ def calculate_historical_career_stats():
     )
 
     for column in RACE_COLUMNS:
-
         if column not in df.columns:
-            df[column] = None
+            df[
+                column
+            ] = None
 
     df[
         RACE_COLUMNS
@@ -4479,20 +4177,14 @@ def calculate_historical_career_stats():
     )
 
 
-# ============================================================
-# PHASE 1 - ALL DATES
-# ============================================================
-
 def discover_date(
     meeting_date,
 ):
-
     response = request_race_page(
         meeting_date
     )
 
     if response is None:
-
         return {
             "date":
                 meeting_date,
@@ -4512,7 +4204,6 @@ def discover_date(
     )
 
     if meeting is None:
-
         return {
             "date":
                 meeting_date,
@@ -4548,7 +4239,6 @@ def discover_month(
     start_date,
     end_date,
 ):
-
     dates = list(
         date_range(
             start_date,
@@ -4558,25 +4248,42 @@ def discover_month(
 
     workers = choose_worker_count(
         DATE_WORKERS,
-        len(dates),
+        len(
+            dates
+        ),
     )
 
     print()
     print(
         "=" * 70
     )
+
     print(
         "PHASE 1 - DATE DISCOVERY"
     )
+
     print(
         "=" * 70
+    )
+
+    print(
+        "Dates queued:",
+        len(
+            dates
+        ),
+    )
+
+    print(
+        "Concurrent date workers:",
+        workers,
     )
 
     discoveries = []
     failures = 0
 
     with ThreadPoolExecutor(
-        max_workers=workers
+        max_workers=
+            workers
     ) as executor:
 
         futures = {
@@ -4585,28 +4292,27 @@ def discover_month(
                 date,
             ):
                 date
-
-            for date in dates
+            for date in
+            dates
         }
 
         for future in as_completed(
             futures
         ):
+            meeting_date = futures[
+                future
+            ]
 
             try:
-
                 result = future.result()
 
             except Exception as exc:
-
                 failures += 1
 
                 print(
-                    "DATE FAILURE:",
-                    futures[
-                        future
-                    ],
-                    exc,
+                    f"DATE FAILURE "
+                    f"{meeting_date}: "
+                    f"{exc}"
                 )
 
                 continue
@@ -4614,13 +4320,26 @@ def discover_month(
             if result[
                 "request_failed"
             ]:
-
                 failures += 1
                 continue
 
             discoveries.append(
                 result
             )
+
+            if (
+                result[
+                    "meeting"
+                ]
+                is not None
+            ):
+                print(
+                    f"MEETING "
+                    f"{meeting_date}: "
+                    f"{result['meeting']['racecourse_name']} "
+                    f"races="
+                    f"{result['race_numbers']}"
+                )
 
     discoveries.sort(
         key=lambda x:
@@ -4635,18 +4354,12 @@ def discover_month(
     )
 
 
-# ============================================================
-# PHASE 2 - ALL RACES
-# ============================================================
-
 def build_race_tasks(
     discoveries,
 ):
-
     tasks = []
 
     for item in discoveries:
-
         meeting = item[
             "meeting"
         ]
@@ -4657,7 +4370,6 @@ def build_race_tasks(
         for race_no in item[
             "race_numbers"
         ]:
-
             tasks.append({
                 "date":
                     item[
@@ -4684,18 +4396,6 @@ def build_race_tasks(
 def fetch_and_parse_race(
     task,
 ):
-    """
-    IMPORTANT ZERO PRIZE RULE:
-
-    Metadata is parsed BEFORE the results table.
-
-    If prize_money_hkd == 0:
-
-        return SKIP_ZERO_PRIZE
-
-    This is not an error.
-    """
-
     meeting_date = task[
         "date"
     ]
@@ -4725,7 +4425,6 @@ def fetch_and_parse_race(
     )
 
     if response is None:
-
         return (
             task,
             None,
@@ -4733,7 +4432,6 @@ def fetch_and_parse_race(
         )
 
     try:
-
         metadata = (
             extract_race_metadata(
                 response.text,
@@ -4746,19 +4444,16 @@ def fetch_and_parse_race(
         )
 
         # ====================================================
-        # ZERO PRIZE MONEY = INTENTIONAL SKIP
-        #
-        # This is NOT a failure.
+        # $0 PRIZE MONEY = NORMAL SKIP
         # ====================================================
 
-        prize_money = (
+        if (
             metadata.get(
                 "prize_money_hkd"
             )
-        )
-
-        if prize_money == 0:
-
+            ==
+            0
+        ):
             print(
                 f"SKIP ZERO-PRIZE RACE: "
                 f"{meeting_date} "
@@ -4772,8 +4467,6 @@ def fetch_and_parse_race(
                 "SKIP_ZERO_PRIZE",
             )
 
-        # Only parse the results table if
-        # this is a real prize-money race.
         results_df = (
             extract_results(
                 response.text,
@@ -4781,24 +4474,33 @@ def fetch_and_parse_race(
             )
         )
 
-    except Exception as exc:
+        # ====================================================
+        # NO RESULTS TABLE / EMPTY RESULTS = NORMAL SKIP
+        # ====================================================
 
+        if (
+            results_df is None
+            or
+            results_df.empty
+        ):
+            print(
+                f"SKIP NO-RESULTS RACE: "
+                f"{meeting_date} "
+                f"{racecourse_code} "
+                f"R{race_no}"
+            )
+
+            return (
+                task,
+                None,
+                "SKIP_NO_RESULTS",
+            )
+
+    except Exception as exc:
         return (
             task,
             None,
             f"PARSE_FAILED: {exc}",
-        )
-
-    if (
-        results_df is None
-        or
-        results_df.empty
-    ):
-
-        return (
-            task,
-            None,
-            "RESULTS_EMPTY",
         )
 
     return (
@@ -4811,13 +4513,11 @@ def fetch_and_parse_race(
 def fetch_month_races(
     discoveries,
 ):
-
     tasks = build_race_tasks(
         discoveries
     )
 
     if not tasks:
-
         return (
             pd.DataFrame(),
             0,
@@ -4825,27 +4525,33 @@ def fetch_month_races(
 
     workers = choose_worker_count(
         RACE_WORKERS,
-        len(tasks),
+        len(
+            tasks
+        ),
     )
 
     print()
     print(
         "=" * 70
     )
+
     print(
         "PHASE 2 - ALL RACES"
     )
+
     print(
         "=" * 70
     )
 
     print(
         "Race pages queued:",
-        len(tasks),
+        len(
+            tasks
+        ),
     )
 
     print(
-        "Race workers:",
+        "Concurrent race workers:",
         workers,
     )
 
@@ -4853,10 +4559,12 @@ def fetch_month_races(
 
     failures = 0
     skipped_zero_prize = 0
+    skipped_no_results = 0
     successful_races = 0
 
     with ThreadPoolExecutor(
-        max_workers=workers
+        max_workers=
+            workers
     ) as executor:
 
         futures = {
@@ -4865,20 +4573,18 @@ def fetch_month_races(
                 task,
             ):
                 task
-
-            for task in tasks
+            for task in
+            tasks
         }
 
         for future in as_completed(
             futures
         ):
-
             task = futures[
                 future
             ]
 
             try:
-
                 (
                     returned_task,
                     results_df,
@@ -4886,51 +4592,48 @@ def fetch_month_races(
                 ) = future.result()
 
             except Exception as exc:
-
                 failures += 1
 
                 print(
-                    "RACE WORKER FAILED:",
-                    task[
-                        "date"
-                    ],
-                    task[
-                        "race_no"
-                    ],
-                    exc,
+                    f"RACE WORKER FAILED "
+                    f"{task['date']} "
+                    f"R{task['race_no']}: "
+                    f"{exc}"
                 )
 
                 continue
 
             # =================================================
-            # $0 PRIZE MONEY
-            #
-            # Completely ignored.
-            # DOES NOT increase failure count.
+            # NORMAL SKIPS
             # =================================================
 
-            if status == "SKIP_ZERO_PRIZE":
-
+            if (
+                status
+                ==
+                "SKIP_ZERO_PRIZE"
+            ):
                 skipped_zero_prize += 1
-
-                print(
-                    f"IGNORED $0 RACE: "
-                    f"{returned_task['date']} "
-                    f"{returned_task['racecourse_code']} "
-                    f"Race "
-                    f"{returned_task['race_no']}"
-                )
-
                 continue
 
-            # Genuine failure.
-            if status is not None:
+            if (
+                status
+                ==
+                "SKIP_NO_RESULTS"
+            ):
+                skipped_no_results += 1
+                continue
 
+            # =================================================
+            # REAL FAILURE
+            # =================================================
+
+            if status is not None:
                 failures += 1
 
                 print(
                     f"RACE FAILED: "
                     f"{returned_task['date']} "
+                    f"{returned_task['racecourse_code']} "
                     f"R{returned_task['race_no']} "
                     f"{status}"
                 )
@@ -4959,12 +4662,16 @@ def fetch_month_races(
     )
 
     print(
+        "  No-results races ignored:",
+        skipped_no_results,
+    )
+
+    print(
         "  Genuine failures:",
         failures,
     )
 
     if not race_frames:
-
         return (
             pd.DataFrame(),
             failures,
@@ -5019,14 +4726,16 @@ def fetch_month_races(
                 "_date_sort",
                 "_race_sort",
                 "_horse_sort",
-            ]
+            ],
+            kind="stable",
         )
         .drop(
             columns=[
                 "_date_sort",
                 "_race_sort",
                 "_horse_sort",
-            ]
+            ],
+            errors="ignore",
         )
         .reset_index(
             drop=True
@@ -5039,34 +4748,34 @@ def fetch_month_races(
     )
 
 
-# ============================================================
-# MAIN
-# ============================================================
-
 def main():
-
     ensure_folders()
 
     try:
+        start_date = (
+            datetime.strptime(
+                START_DATE,
+                "%Y-%m-%d",
+            ).date()
+        )
 
-        start_date = datetime.strptime(
-            START_DATE,
-            "%Y-%m-%d",
-        ).date()
-
-        end_date = datetime.strptime(
-            END_DATE,
-            "%Y-%m-%d",
-        ).date()
+        end_date = (
+            datetime.strptime(
+                END_DATE,
+                "%Y-%m-%d",
+            ).date()
+        )
 
     except ValueError:
-
         raise SystemExit(
             "Dates must use YYYY-MM-DD."
         )
 
-    if start_date > end_date:
-
+    if (
+        start_date
+        >
+        end_date
+    ):
         raise SystemExit(
             "START_DATE cannot "
             "be after END_DATE."
@@ -5145,7 +4854,7 @@ def main():
 
     # ========================================================
     # PHASE 1
-    # ALL DATES
+    # DISCOVER ALL DATES CONCURRENTLY
     # ========================================================
 
     (
@@ -5158,9 +4867,9 @@ def main():
 
     # ========================================================
     # PHASE 2
-    # ALL RACES
+    # FETCH ALL RACES CONCURRENTLY
     #
-    # $0 races are ignored here.
+    # $0 RACES AND NO-RESULTS RACES ARE NORMAL SKIPS.
     # ========================================================
 
     (
@@ -5171,11 +4880,10 @@ def main():
     )
 
     # ========================================================
-    # NO RESULT ROWS
+    # NOTHING USABLE THIS MONTH
     # ========================================================
 
     if month_results.empty:
-
         total_failures = (
             date_failures
             +
@@ -5184,24 +4892,26 @@ def main():
 
         print()
         print(
-            "No usable race-result rows "
-            "for this month."
+            "No usable race-result "
+            "rows for this month."
+        )
+
+        print(
+            "$0 prize-money races and "
+            "race numbers with no results "
+            "tables are normal skips."
         )
 
         if total_failures:
-
             print(
-                "Unresolved failures:",
+                "Unresolved genuine failures:",
                 total_failures,
             )
 
-            raise SystemExit(1)
+            raise SystemExit(
+                1
+            )
 
-        # Important:
-        #
-        # If every detected race happened to
-        # have $0 prize money, this is still
-        # considered SUCCESS.
         print(
             "No genuine errors detected."
         )
@@ -5210,7 +4920,7 @@ def main():
 
     # ========================================================
     # PHASE 3
-    # UNIQUE HORSES FOR WHOLE MONTH
+    # ALL UNIQUE HORSES FOR THE MONTH
     # ========================================================
 
     (
@@ -5247,7 +4957,7 @@ def main():
     )
 
     # ========================================================
-    # SAVE
+    # FINAL SAVE
     # ========================================================
 
     print()
@@ -5282,9 +4992,13 @@ def main():
     calculate_historical_career_stats()
 
     # ========================================================
-    # FAILURE STATUS
+    # ONLY REAL FAILURES COUNT HERE
     #
-    # $0 races are NOT included.
+    # THESE DO NOT COUNT:
+    #
+    # - prize_money_hkd == 0
+    # - no results table
+    # - empty results table
     # ========================================================
 
     total_failures = (
@@ -5329,14 +5043,20 @@ def main():
     )
 
     print(
-        "NOTE: $0 prize-money races "
-        "are intentionally ignored "
-        "and are NOT failures."
+        "$0 prize-money races: "
+        "ignored, not failures."
+    )
+
+    print(
+        "Race numbers with no "
+        "results table: "
+        "ignored, not failures."
     )
 
     if total_failures:
-
-        raise SystemExit(1)
+        raise SystemExit(
+            1
+        )
 
 
 if __name__ == "__main__":
