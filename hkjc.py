@@ -23,32 +23,51 @@ HORSE_BASE_URL = "https://racing.hkjc.com/en-us/local/information/horse"
 START_DATE = os.getenv("START_DATE", "2006-01-01")
 END_DATE = os.getenv("END_DATE", "2006-12-31")
 
-# Race pages remain sequential.
-# This delay applies only between races.
-RACE_DELAY_SECONDS = float(
-    os.getenv(
-        "RACE_DELAY_SECONDS",
-        os.getenv("DELAY_SECONDS", "1")
-    )
-)
-
-# Horse Option=1 pages are fetched concurrently.
+# Whole-month concurrent phases.
 #
-# 0 = automatically use one worker for every horse that needs
-#     a page in the current race.
+# 0 means:
+#     submit ALL tasks in that phase at once.
 #
-# Example:
-#   14 uncached horses -> 14 concurrent GETs
-#    8 uncached horses ->  8 concurrent GETs
-#
-# Set a positive number if you later want a safety cap.
-MAX_HORSE_WORKERS = max(
+# IMPORTANT:
+# HORSE_WORKERS=0 could mean hundreds of simultaneous
+# horse requests for an entire month.
+DATE_WORKERS = max(
     0,
     int(
         os.getenv(
-            "MAX_HORSE_WORKERS",
-            "0"
+            "DATE_WORKERS",
+            "16"
         )
+    )
+)
+
+RACE_WORKERS = max(
+    0,
+    int(
+        os.getenv(
+            "RACE_WORKERS",
+            "20"
+        )
+    )
+)
+
+HORSE_WORKERS = max(
+    0,
+    int(
+        os.getenv(
+            "HORSE_WORKERS",
+            os.getenv(
+                "MAX_HORSE_WORKERS",
+                "20"
+            )
+        )
+    )
+)
+
+REQUEST_TIMEOUT = float(
+    os.getenv(
+        "REQUEST_TIMEOUT",
+        "60"
     )
 )
 
@@ -208,9 +227,12 @@ RACE_COLUMNS = [
 
 COMMON_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/140.0.0.0 Safari/537.36"
+        "Mozilla/5.0 "
+        "(Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
+        "Chrome/140.0.0.0 "
+        "Safari/537.36"
     ),
 
     "Accept": (
@@ -228,6 +250,7 @@ COMMON_HEADERS = {
 def create_http_session(
     pool_size=1
 ):
+
     session = requests.Session()
 
     session.headers.update(
@@ -292,21 +315,15 @@ def create_http_session(
     return session
 
 
-# Race pages remain sequential.
-race_session = create_http_session(
-    pool_size=2
-)
-
-
-# Each worker thread gets its own persistent requests.Session.
+# Each worker thread gets its own persistent Session.
 _thread_local = threading.local()
 
 
-def get_horse_session():
+def get_worker_session():
 
     worker_session = getattr(
         _thread_local,
-        "horse_session",
+        "worker_session",
         None
     )
 
@@ -318,7 +335,7 @@ def get_horse_session():
             )
         )
 
-        _thread_local.horse_session = (
+        _thread_local.worker_session = (
             worker_session
         )
 
@@ -356,6 +373,30 @@ def date_range(
         current += timedelta(
             days=1
         )
+
+
+def choose_worker_count(
+    configured_workers,
+    task_count
+):
+    """
+    0 means every queued task is allowed
+    to start concurrently.
+    """
+
+    if task_count <= 0:
+        return 0
+
+    if configured_workers <= 0:
+        return task_count
+
+    return max(
+        1,
+        min(
+            configured_workers,
+            task_count
+        )
+    )
 
 
 def clean_text(
@@ -488,15 +529,14 @@ def extract_horse_id(
         re.I
     )
 
-    if match:
+    if not match:
+        return ""
 
-        return clean_text(
-            match.group(
-                1
-            )
+    return clean_text(
+        match.group(
+            1
         )
-
-    return ""
+    )
 
 
 def clean_finish_time(
@@ -519,7 +559,6 @@ def clean_finish_time(
         r"0+(?:(?::|\.)0+)+",
         normalised
     ):
-
         return None
 
     return text
@@ -538,7 +577,6 @@ SOUTHERN_HEMISPHERE_ORIGINS = {
     "BRZ",
     "CHI",
 }
-
 
 NORTHERN_HEMISPHERE_ORIGINS = {
     "IRE",
@@ -564,7 +602,6 @@ def get_hemisphere_of_origin(
         in
         SOUTHERN_HEMISPHERE_ORIGINS
     ):
-
         return "Southern"
 
     if (
@@ -572,7 +609,6 @@ def get_hemisphere_of_origin(
         in
         NORTHERN_HEMISPHERE_ORIGINS
     ):
-
         return "Northern"
 
     return "Other"
@@ -598,7 +634,6 @@ def get_official_horse_birthday(
     if is_southern_hemisphere_horse(
         country_of_origin
     ):
-
         return (
             8,
             1
@@ -633,7 +668,6 @@ def parse_date_only(
     if pd.isna(
         parsed
     ):
-
         return None
 
     return parsed.date()
@@ -747,7 +781,6 @@ def calculate_horse_age_at_race(
         birthday_month,
         birthday_day
     ):
-
         age_at_race -= 1
 
     if age_at_race < 0:
@@ -874,15 +907,22 @@ def request_race_page(
         race_no
     )
 
+    worker_session = (
+        get_worker_session()
+    )
+
     try:
 
-        response = race_session.get(
-            url,
-            timeout=60
+        response = (
+            worker_session.get(
+                url,
+                timeout=REQUEST_TIMEOUT
+            )
         )
 
         print(
-            f"GET {url} "
+            f"GET "
+            f"{url} "
             f"-> "
             f"{response.status_code}"
         )
@@ -894,7 +934,8 @@ def request_race_page(
     except requests.RequestException as exc:
 
         print(
-            "Race request failed:",
+            f"Race request failed "
+            f"{url}:",
             exc
         )
 
@@ -910,7 +951,7 @@ def request_horse_page(
     )
 
     worker_session = (
-        get_horse_session()
+        get_worker_session()
     )
 
     try:
@@ -929,7 +970,6 @@ def request_horse_page(
         print(
             f"HORSE "
             f"{horse_id} "
-            f"{url} "
             f"-> "
             f"{response.status_code}"
         )
@@ -954,19 +994,19 @@ def fetch_and_parse_horse(
     horse_name
 ):
     """
-    Worker-thread function.
+    ONE horse GET.
 
-    Performs ONE Option=1 GET and parses:
+    The same Option=1 response supplies:
 
-        - static profile
-        - complete form history
-        - race class
-        - ratings
-
-    from the same response.
-
-    This worker does NOT modify shared
-    DataFrames or dictionaries.
+        profile
+        age
+        sex
+        sire
+        dam
+        dam sire
+        full form history
+        race class
+        ratings
     """
 
     response = request_horse_page(
@@ -1168,7 +1208,6 @@ def extract_label_value(
         if not pattern.search(
             cell
         ):
-
             continue
 
         same_cell = pattern.sub(
@@ -1237,8 +1276,8 @@ def extract_race_metadata(
         "race_name":
             "",
 
-        # Race-page header class is diagnostic only.
-        # Final race_class comes from horse form history.
+        # Diagnostic only.
+        # FINAL race_class comes from horse form history.
         "race_class":
             "",
 
@@ -1277,8 +1316,8 @@ def extract_race_metadata(
     if header is None:
 
         print(
-            "WARNING: race header "
-            "not found"
+            "WARNING: "
+            "race header not found"
         )
 
         return metadata
@@ -1419,7 +1458,6 @@ def extract_race_metadata(
                 cell,
                 re.I
             ):
-
                 continue
 
             for candidate in cells[
@@ -1438,7 +1476,6 @@ def extract_race_metadata(
                     candidate,
                     re.I
                 ):
-
                     continue
 
                 if re.search(
@@ -1446,7 +1483,6 @@ def extract_race_metadata(
                     candidate,
                     re.I
                 ):
-
                     continue
 
                 metadata[
@@ -1714,13 +1750,15 @@ def normalise_result_header(
     value
 ):
 
-    text = clean_text(
-        value
-    ).lower()
-
-    text = text.replace(
-        "&",
-        " and "
+    text = (
+        clean_text(
+            value
+        )
+        .lower()
+        .replace(
+            "&",
+            " and "
+        )
     )
 
     text = re.sub(
@@ -1735,13 +1773,11 @@ def normalise_result_header(
         text
     )
 
-    text = re.sub(
+    return re.sub(
         r"\s+",
         " ",
         text
-    )
-
-    return text.strip()
+    ).strip()
 
 
 def identify_result_header(
@@ -1765,7 +1801,6 @@ def identify_result_header(
     ):
 
         if normalised in aliases:
-
             return canonical_name
 
     return None
@@ -1832,7 +1867,6 @@ def build_result_column_map(
             best_map = current_map
 
     if best_score < 5:
-
         return {}
 
     return best_map
@@ -1855,7 +1889,6 @@ def get_result_cell(
         or
         index >= len(cells)
     ):
-
         return None
 
     return cells[
@@ -1909,8 +1942,8 @@ def extract_results(
     if table is None:
 
         print(
-            "WARNING: results table "
-            "not found"
+            "WARNING: "
+            "results table not found"
         )
 
         return None
@@ -1952,17 +1985,13 @@ def extract_results(
 
         for field in core_fields
 
-        if (
-            field
-            not in
-            column_map
-        )
+        if field not in column_map
     ]
 
     if missing_core:
 
         print(
-            "WARNING: results table is "
+            "WARNING: results table "
             "missing expected headings:",
             missing_core
         )
@@ -2004,16 +2033,14 @@ def extract_results(
 
         if horse_cell is not None:
 
-            horse_link = (
-                horse_cell.find(
-                    "a",
+            horse_link = horse_cell.find(
+                "a",
 
-                    href=
-                        re.compile(
-                            r"horse",
-                            re.I
-                        )
-                )
+                href=
+                    re.compile(
+                        r"horse",
+                        re.I
+                    )
             )
 
         if horse_link is None:
@@ -2046,7 +2073,6 @@ def extract_results(
             and
             horse_number is None
         ):
-
             continue
 
         candidate_rows.append(
@@ -2175,10 +2201,7 @@ def extract_results(
                 ],
 
             # IMPORTANT:
-            # deliberately blank.
-            #
-            # This gets populated ONLY from
-            # the matching horse form-history row.
+            # Not populated from race header.
             "race_class":
                 "",
 
@@ -2342,7 +2365,6 @@ PROFILE_LABELS = [
     "Dam",
     "Dam's Sire",
 ]
-
 
 PROFILE_SECTION_STOP_LABELS = [
     "Current Rating",
@@ -2707,49 +2729,14 @@ def extract_horse_profile(
                     "horse_name"
                 ],
 
-            "brand":
-                profile[
-                    "brand_number"
-                ],
-
             "origin":
                 profile[
                     "country_of_origin"
                 ],
 
-            "hemisphere":
-                profile[
-                    "hemisphere_of_origin"
-                ],
-
             "age":
                 profile[
                     "horse_age"
-                ],
-
-            "colour":
-                profile[
-                    "horse_colour"
-                ],
-
-            "sex":
-                profile[
-                    "horse_sex"
-                ],
-
-            "sire":
-                profile[
-                    "sire"
-                ],
-
-            "dam":
-                profile[
-                    "dam"
-                ],
-
-            "dam_sire":
-                profile[
-                    "dam_sire"
                 ],
 
             "success":
@@ -2875,14 +2862,6 @@ def load_horse_master():
                 horse_id
             )
 
-    if age_refresh_pending:
-
-        print(
-            f"{len(age_refresh_pending)} "
-            f"existing horse profiles "
-            f"need a one-time age refresh."
-        )
-
     return (
         horse_master,
         age_refresh_pending
@@ -2995,7 +2974,6 @@ def merge_horse_profile(
 ):
 
     if not existing:
-
         return new_profile
 
     if (
@@ -3005,7 +2983,6 @@ def merge_horse_profile(
             "profile_scraped"
         )
     ):
-
         return existing
 
     merged = dict(
@@ -3043,7 +3020,7 @@ def merge_horse_profile(
 
 
 # ============================================================
-# HORSE FORM / RATING HISTORY PARSER
+# HORSE FORM / RATING HISTORY
 # ============================================================
 
 HORSE_FORM_HEADER_ALIASES = {
@@ -3089,13 +3066,11 @@ def normalise_horse_form_header(
         text
     )
 
-    text = re.sub(
+    return re.sub(
         r"\s+",
         " ",
         text
-    )
-
-    return text.strip()
+    ).strip()
 
 
 def identify_horse_form_header(
@@ -3119,7 +3094,6 @@ def identify_horse_form_header(
     ):
 
         if normalised in aliases:
-
             return canonical_name
 
     return None
@@ -3176,13 +3150,14 @@ def build_horse_form_column_map(
                     canonical_name
                 ] = index
 
-        score = len(
+        if len(
             current_map
-        )
+        ) > best_score:
 
-        if score > best_score:
+            best_score = len(
+                current_map
+            )
 
-            best_score = score
             best_map = current_map
 
     required = {
@@ -3195,7 +3170,6 @@ def build_horse_form_column_map(
     if not required.issubset(
         best_map.keys()
     ):
-
         return {}
 
     return best_map
@@ -3245,7 +3219,6 @@ def get_form_cell_text(
         or
         index >= len(cells)
     ):
-
         return ""
 
     return clean_text(
@@ -3283,7 +3256,6 @@ def parse_hkjc_form_date(
             ).date()
 
         except ValueError:
-
             pass
 
     parsed = pd.to_datetime(
@@ -3295,7 +3267,6 @@ def parse_hkjc_form_date(
     if pd.isna(
         parsed
     ):
-
         return None
 
     return parsed.date()
@@ -3331,7 +3302,6 @@ def extract_header_rating(
                 )
 
             except ValueError:
-
                 return None
 
     return None
@@ -3371,8 +3341,9 @@ def extract_horse_rating_history(
     if table is None:
 
         print(
-            f"WARNING: horse form "
-            f"table not found for "
+            f"WARNING: "
+            f"horse form table "
+            f"not found for "
             f"{horse_id}"
         )
 
@@ -3380,12 +3351,6 @@ def extract_horse_rating_history(
             columns=
                 HORSE_RATING_CACHE_COLUMNS
         )
-
-    print(
-        f"HORSE FORM COLUMN MAP "
-        f"{horse_id}:",
-        column_map
-    )
 
     records = []
 
@@ -3443,7 +3408,6 @@ def extract_horse_rating_history(
             or
             race_date is None
         ):
-
             continue
 
         records.append({
@@ -3458,9 +3422,6 @@ def extract_horse_rating_history(
             "race_index":
                 race_index,
 
-            # IMPORTANT:
-            # This value comes directly from the
-            # horse profile/form history page.
             "race_class":
                 race_class,
 
@@ -3528,11 +3489,10 @@ def extract_horse_rating_history(
             )
     )
 
-    # Form-table rating = rating going INTO the race.
+    # Rating shown in the form row is the rating
+    # going INTO that race.
     #
-    # Rating after current race = rating before next race.
-    #
-    # Latest race uses Current Rating / Last Rating from header.
+    # Rating after a race = next race's pre-race rating.
     for index, record in enumerate(
         records
     ):
@@ -3577,7 +3537,7 @@ def extract_horse_rating_history(
 
 
 # ============================================================
-# HORSE RATING / FORM CACHE
+# HORSE FORM CACHE
 # ============================================================
 
 def load_horse_rating_cache():
@@ -3760,7 +3720,6 @@ def normalise_rating_key(
         or
         parsed_index is None
     ):
-
         return None
 
     return (
@@ -3787,7 +3746,6 @@ def build_rating_cache_lookup(
         or
         cache_df.empty
     ):
-
         return lookup
 
     for _, row in cache_df.iterrows():
@@ -3924,8 +3882,8 @@ def apply_rating_cache_to_results(
         )
 
         # IMPORTANT:
-        # race_class is populated ONLY from
-        # matching horse form-history row.
+        # final race_class comes ONLY from
+        # matching horse form-history record.
         df.at[
             index,
             "race_class"
@@ -4024,13 +3982,6 @@ def horse_form_rows_complete_for_results(
     horse_results_df,
     cache_lookup
 ):
-    """
-    A matching cache record with a non-empty race_class
-    counts as complete.
-
-    Rating itself may legitimately be blank for an unrated
-    horse, so rating presence is NOT used.
-    """
 
     found_valid_key = False
 
@@ -4071,14 +4022,13 @@ def horse_form_rows_complete_for_results(
                 )
             )
         ):
-
             return False
 
     return found_valid_key
 
 
 # ============================================================
-# CONCURRENT HORSE GET PHASE
+# PHASE 3 - WHOLE MONTH HORSES
 # ============================================================
 
 def ensure_horse_data(
@@ -4087,32 +4037,6 @@ def ensure_horse_data(
     age_refresh_pending,
     rating_cache_df
 ):
-    """
-    Fetch EVERY required horse page for the current race
-    concurrently.
-
-    Example:
-
-        Race has 14 runners.
-        3 horses already have complete local data.
-        11 require Option=1 pages.
-
-        -> worker_count = 11
-        -> all 11 GETs are submitted together.
-
-    MAX_HORSE_WORKERS = 0 means automatic/all-at-once.
-
-    If MAX_HORSE_WORKERS is positive, it becomes a safety cap.
-
-    Only HTTP GET + HTML parsing happens in worker threads.
-
-    Shared structures:
-        horse_master
-        rating_cache_df
-        age_refresh_pending
-
-    are updated only in the main thread.
-    """
 
     if (
         results_df is None
@@ -4120,11 +4044,10 @@ def ensure_horse_data(
         results_df.empty
     ):
 
-        return rating_cache_df
-
-    # --------------------------------------------------------
-    # FIND UNIQUE HORSES IN THIS RACE
-    # --------------------------------------------------------
+        return (
+            rating_cache_df,
+            0
+        )
 
     unique_horses = (
         results_df[
@@ -4134,6 +4057,11 @@ def ensure_horse_data(
             ]
         ]
         .copy()
+        .drop_duplicates(
+            subset=[
+                "horse_id"
+            ]
+        )
     )
 
     unique_horses[
@@ -4142,7 +4070,9 @@ def ensure_horse_data(
         unique_horses[
             "horse_id"
         ]
-        .astype(str)
+        .astype(
+            str
+        )
         .map(
             clean_text
         )
@@ -4154,23 +4084,6 @@ def ensure_horse_data(
                 "horse_id"
             ].ne("")
         ]
-        .drop_duplicates(
-            subset=[
-                "horse_id"
-            ]
-        )
-    )
-
-    race_horse_count = len(
-        unique_horses
-    )
-
-    print()
-
-    print(
-        f"Race contains "
-        f"{race_horse_count} "
-        f"unique horses."
     )
 
     cache_lookup = (
@@ -4180,12 +4093,7 @@ def ensure_horse_data(
     )
 
     horses_to_fetch = []
-
     cached_horses = 0
-
-    # --------------------------------------------------------
-    # CHECK WHICH HORSES ACTUALLY NEED A GET
-    # --------------------------------------------------------
 
     for _, row in (
         unique_horses.iterrows()
@@ -4214,18 +4122,14 @@ def ensure_horse_data(
             )
         )
 
-        force_age_refresh = (
-            horse_id
-            in
-            age_refresh_pending
-        )
-
         need_profile = (
             not horse_profile_is_scraped(
                 existing
             )
             or
-            force_age_refresh
+            horse_id
+            in
+            age_refresh_pending
         )
 
         horse_results = (
@@ -4233,7 +4137,9 @@ def ensure_horse_data(
                 results_df[
                     "horse_id"
                 ]
-                .astype(str)
+                .astype(
+                    str
+                )
                 .map(
                     clean_text
                 )
@@ -4242,16 +4148,13 @@ def ensure_horse_data(
             ]
         )
 
-        have_form_rows = (
+        need_form = (
+            not
             horse_form_rows_complete_for_results(
                 horse_id,
                 horse_results,
                 cache_lookup
             )
-        )
-
-        need_form = (
-            not have_form_rows
         )
 
         if (
@@ -4261,13 +4164,6 @@ def ensure_horse_data(
         ):
 
             cached_horses += 1
-
-            print(
-                f"CACHED: "
-                f"{horse_id} "
-                f"{horse_name}"
-            )
-
             continue
 
         reasons = []
@@ -4292,56 +4188,14 @@ def ensure_horse_data(
             )
         )
 
-    # --------------------------------------------------------
-    # NO HTTP REQUESTS NEEDED
-    # --------------------------------------------------------
-
-    if not horses_to_fetch:
-
-        print(
-            f"All "
-            f"{race_horse_count} "
-            f"horses already cached."
-        )
-
-        return rating_cache_df
-
-    required_horse_count = len(
-        horses_to_fetch
-    )
-
-    # --------------------------------------------------------
-    # DETERMINE WORKER COUNT
-    # --------------------------------------------------------
-
-    if MAX_HORSE_WORKERS <= 0:
-
-        # AUTO MODE:
-        # one worker for every horse needing a GET.
-        worker_count = (
-            required_horse_count
-        )
-
-    else:
-
-        # Optional safety cap.
-        worker_count = min(
-            MAX_HORSE_WORKERS,
-            required_horse_count
-        )
-
-    worker_count = max(
-        1,
-        worker_count
-    )
-
     print()
     print(
         "=" * 70
     )
 
     print(
-        "HORSE GET PHASE"
+        "PHASE 3 - UNIQUE HORSES "
+        "FOR WHOLE MONTH"
     )
 
     print(
@@ -4349,55 +4203,62 @@ def ensure_horse_data(
     )
 
     print(
-        f"Race horses: "
-        f"{race_horse_count}"
+        "Unique horses in month:",
+        len(
+            unique_horses
+        )
     )
 
     print(
-        f"Already cached: "
-        f"{cached_horses}"
+        "Already complete locally:",
+        cached_horses
     )
 
     print(
-        f"Horse pages required: "
-        f"{required_horse_count}"
+        "Horse pages required:",
+        len(
+            horses_to_fetch
+        )
+    )
+
+    if not horses_to_fetch:
+
+        print(
+            "No horse-page GETs required."
+        )
+
+        return (
+            rating_cache_df,
+            0
+        )
+
+    worker_count = (
+        choose_worker_count(
+            HORSE_WORKERS,
+            len(
+                horses_to_fetch
+            )
+        )
     )
 
     print(
-        f"Concurrent workers: "
-        f"{worker_count}"
-    )
-
-    if (
+        "Concurrent horse workers:",
         worker_count
-        ==
-        required_horse_count
-    ):
-
-        print(
-            "Mode: ALL required horses "
-            "loading concurrently"
-        )
-
-    else:
-
-        print(
-            f"Mode: concurrency capped "
-            f"at {worker_count}"
-        )
-
-    print(
-        "=" * 70
     )
+
+    if HORSE_WORKERS == 0:
+
+        print(
+            "HORSE_WORKERS=0: "
+            "every missing horse in "
+            "the month is submitted "
+            "at once."
+        )
 
     futures = {}
 
+    failed_requests = 0
     completed = 0
-    failed = 0
-
-    # --------------------------------------------------------
-    # SUBMIT EVERY REQUIRED HORSE
-    # --------------------------------------------------------
 
     with ThreadPoolExecutor(
         max_workers=
@@ -4409,15 +4270,6 @@ def ensure_horse_data(
             horse_name,
             reasons
         ) in horses_to_fetch:
-
-            print(
-                f"QUEUE: "
-                f"{horse_id} "
-                f"{horse_name} "
-                f"("
-                f"{', '.join(reasons)}"
-                f")"
-            )
 
             future = (
                 executor.submit(
@@ -4431,12 +4283,9 @@ def ensure_horse_data(
                 future
             ] = (
                 horse_id,
-                horse_name
+                horse_name,
+                reasons
             )
-
-        # ----------------------------------------------------
-        # MERGE RESULTS AS EACH REQUEST COMPLETES
-        # ----------------------------------------------------
 
         for future in as_completed(
             futures
@@ -4444,7 +4293,8 @@ def ensure_horse_data(
 
             (
                 horse_id,
-                horse_name
+                horse_name,
+                reasons
             ) = futures[
                 future
             ]
@@ -4453,17 +4303,17 @@ def ensure_horse_data(
 
                 (
                     returned_horse_id,
-                    returned_horse_name,
+                    _,
                     new_profile,
                     history_df
                 ) = future.result()
 
             except Exception as exc:
 
-                failed += 1
+                failed_requests += 1
 
                 print(
-                    f"FAILED "
+                    f"HORSE WORKER FAILED "
                     f"{horse_id} "
                     f"{horse_name}: "
                     f"{exc}"
@@ -4477,14 +4327,13 @@ def ensure_horse_data(
                 horse_id
             ):
 
-                failed += 1
+                failed_requests += 1
 
                 print(
-                    f"WARNING: horse worker "
-                    f"ID mismatch. "
-                    f"Expected "
+                    f"HORSE ID MISMATCH: "
+                    f"expected "
                     f"{horse_id}, "
-                    f"received "
+                    f"got "
                     f"{returned_horse_id}"
                 )
 
@@ -4493,38 +4342,20 @@ def ensure_horse_data(
             if (
                 new_profile is None
                 and
-                (
-                    history_df is None
-                    or
-                    history_df.empty
-                )
+                history_df is None
             ):
 
-                failed += 1
+                failed_requests += 1
 
                 print(
-                    f"FAILED: "
+                    f"HORSE GET FAILED: "
                     f"{horse_id} "
-                    f"{horse_name} "
-                    f"returned no usable data."
+                    f"{horse_name}"
                 )
 
                 continue
 
             completed += 1
-
-            print(
-                f"COMPLETE "
-                f"{completed}/"
-                f"{required_horse_count}: "
-                f"{horse_id} "
-                f"{horse_name}"
-            )
-
-            # =================================================
-            # PROFILE MERGE
-            # Main thread only.
-            # =================================================
 
             if new_profile is not None:
 
@@ -4570,9 +4401,7 @@ def ensure_horse_data(
 
                     horse_master[
                         horse_id
-                    ] = (
-                        merged_profile
-                    )
+                    ] = merged_profile
 
                     if (
                         horse_profile_is_scraped(
@@ -4584,35 +4413,11 @@ def ensure_horse_data(
                             horse_id
                         )
 
-            # =================================================
-            # FORM / RATING HISTORY MERGE
-            # Main thread only.
-            # =================================================
-
             if (
                 history_df is not None
                 and
                 not history_df.empty
             ):
-
-                class_count = (
-                    history_df[
-                        "race_class"
-                    ]
-                    .astype(str)
-                    .map(
-                        clean_text
-                    )
-                    .ne("")
-                    .sum()
-                )
-
-                print(
-                    f"FORM HISTORY: "
-                    f"{horse_id} -> "
-                    f"{len(history_df)} records, "
-                    f"{class_count} race classes"
-                )
 
                 rating_cache_df = (
                     replace_horse_in_rating_cache(
@@ -4627,23 +4432,42 @@ def ensure_horse_data(
                 print(
                     f"WARNING: no form/rating "
                     f"history found for "
-                    f"{horse_id}"
+                    f"{horse_id} "
+                    f"{horse_name}"
                 )
 
-    print()
+            if (
+                completed % 25
+                ==
+                0
+                or
+                completed
+                ==
+                len(
+                    horses_to_fetch
+                )
+            ):
+
+                print(
+                    f"Horse phase progress: "
+                    f"{completed}/"
+                    f"{len(horses_to_fetch)}"
+                )
 
     print(
-        f"Horse GET phase finished: "
+        f"Horse phase complete: "
         f"{completed} completed, "
-        f"{failed} failed, "
-        f"{cached_horses} already cached."
+        f"{failed_requests} failures."
     )
 
-    return rating_cache_df
+    return (
+        rating_cache_df,
+        failed_requests
+    )
 
 
 # ============================================================
-# ENRICH RESULTS FROM HORSE MASTER
+# ENRICH RESULTS
 # ============================================================
 
 def enrich_results_with_horse_master(
@@ -4878,7 +4702,6 @@ def backfill_existing_results(
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
-
         return
 
     try:
@@ -4905,13 +4728,11 @@ def backfill_existing_results(
         not in
         df.columns
     ):
-
         return
 
     print(
-        f"Backfilling static horse "
-        f"information and historical age "
-        f"onto {len(df)} rows..."
+        f"Backfilling horse data onto "
+        f"{len(df)} existing rows..."
     )
 
     df = (
@@ -4948,11 +4769,6 @@ def backfill_existing_results(
         index=False
     )
 
-    print(
-        "Existing results static "
-        "horse data backfilled."
-    )
-
 
 def apply_rating_cache_to_existing_results_file(
     cache_df
@@ -4961,7 +4777,6 @@ def apply_rating_cache_to_existing_results_file(
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
-
         return
 
     try:
@@ -4975,8 +4790,7 @@ def apply_rating_cache_to_existing_results_file(
 
         print(
             "Could not read "
-            "all_results.csv for local "
-            "rating/class backfill:",
+            "all_results.csv:",
             exc
         )
 
@@ -4991,13 +4805,11 @@ def apply_rating_cache_to_existing_results_file(
         "race_index",
     ]
 
-    for column in required_columns:
-
-        if column not in (
-            results_df.columns
-        ):
-
-            return
+    if any(
+        column not in results_df.columns
+        for column in required_columns
+    ):
+        return
 
     results_df = (
         apply_rating_cache_to_results(
@@ -5067,19 +4879,12 @@ def apply_rating_cache_to_existing_results_file(
         index=False
     )
 
-    print(
-        "Existing results updated "
-        "from LOCAL horse-form "
-        "cache only."
-    )
-
 
 def load_existing_result_ids():
 
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
-
         return set()
 
     try:
@@ -5127,7 +4932,6 @@ def append_results(
         not in
         results_df.columns
     ):
-
         return
 
     df = results_df.copy()
@@ -5195,9 +4999,9 @@ def append_results(
     )
 
     print(
-        f"Added {len(df)} "
-        f"new result rows "
-        f"to CSV."
+        f"Added "
+        f"{len(df)} "
+        f"new result rows."
     )
 
 
@@ -5212,7 +5016,6 @@ def get_prize_payout_schedule(
     if pd.isna(
         race_date
     ):
-
         return {}
 
     if (
@@ -5256,7 +5059,6 @@ def calculate_dead_heat_payout_percentages(
         not in
         df.columns
     ):
-
         return payout_percentages
 
     for (
@@ -5301,8 +5103,7 @@ def calculate_dead_heat_payout_percentages(
             finishing_position,
             position_group
         ) in (
-            race_with_positions
-            .groupby(
+            race_with_positions.groupby(
                 "_finish_numeric",
                 sort=True
             )
@@ -5318,7 +5119,6 @@ def calculate_dead_heat_payout_percentages(
                 ValueError,
                 TypeError
             ):
-
                 continue
 
             number_dead_heating = len(
@@ -5360,32 +5160,6 @@ def calculate_dead_heat_payout_percentages(
                     number_dead_heating
                 )
 
-                print(
-                    "DEAD HEAT PAYOUT:",
-                    {
-                        "race_id":
-                            race_id,
-
-                        "position":
-                            position,
-
-                        "horses":
-                            number_dead_heating,
-
-                        "combined_percentage":
-                            round(
-                                combined_percentage,
-                                6
-                            ),
-
-                        "each_percentage":
-                            round(
-                                payout_percentage,
-                                6
-                            ),
-                    }
-                )
-
             payout_percentages.loc[
                 position_group.index
             ] = payout_percentage
@@ -5394,7 +5168,7 @@ def calculate_dead_heat_payout_percentages(
 
 
 # ============================================================
-# HISTORICAL CAREER + PRIZE STATS
+# HISTORICAL CAREER STATS
 # ============================================================
 
 def calculate_historical_career_stats():
@@ -5402,7 +5176,6 @@ def calculate_historical_career_stats():
     if not os.path.exists(
         RACE_RESULTS_FILE
     ):
-
         return
 
     try:
@@ -5416,7 +5189,7 @@ def calculate_historical_career_stats():
 
         print(
             "Could not calculate "
-            "historical career stats:",
+            "career stats:",
             exc
         )
 
@@ -5434,22 +5207,21 @@ def calculate_historical_career_stats():
         "prize_money_hkd",
     ]
 
-    for column in required_columns:
-
-        if column not in df.columns:
-            return
+    if any(
+        column not in df.columns
+        for column in required_columns
+    ):
+        return
 
     print(
         f"Calculating historical "
-        f"career and prize-money "
-        f"stats for "
+        f"career stats for "
         f"{len(df)} rows..."
     )
 
     if (
         "finish_time"
-        in
-        df.columns
+        in df.columns
     ):
 
         df[
@@ -5458,27 +5230,6 @@ def calculate_historical_career_stats():
             "finish_time"
         ].apply(
             clean_finish_time
-        )
-
-    if (
-        "horse_profile_url"
-        in
-        df.columns
-    ):
-
-        df[
-            "horse_profile_url"
-        ] = df[
-            "horse_profile_url"
-        ].apply(
-            lambda value:
-                ensure_horse_option_1(
-                    value
-                )
-                if clean_text(
-                    value
-                )
-                else ""
         )
 
     df[
@@ -5822,26 +5573,22 @@ def calculate_historical_career_stats():
         kind="stable"
     )
 
-    temporary_columns = [
-        "_original_order",
-        "_race_date_sort",
-        "_race_number_sort",
-        "_race_index_sort",
-        "_finish_numeric",
-        "_race_prize_numeric",
-        "_is_start",
-        "_is_win",
-        "_is_second",
-        "_is_third",
-        "_is_top3",
-    ]
-
     df = df.drop(
-        columns=
-            temporary_columns,
+        columns=[
+            "_original_order",
+            "_race_date_sort",
+            "_race_number_sort",
+            "_race_index_sort",
+            "_finish_numeric",
+            "_race_prize_numeric",
+            "_is_start",
+            "_is_win",
+            "_is_second",
+            "_is_third",
+            "_is_top3",
+        ],
 
-        errors=
-            "ignore"
+        errors="ignore"
     )
 
     for column in RACE_COLUMNS:
@@ -5871,79 +5618,14 @@ def calculate_historical_career_stats():
         index=False
     )
 
-    print(
-        "Historical career statistics, "
-        "dead-heat payouts and prize "
-        "money updated."
-    )
-
 
 # ============================================================
-# DAILY CHECKPOINT
+# PHASE 1 - DISCOVER ALL DATES
 # ============================================================
 
-def save_daily_checkpoint(
-    meeting_date,
-    horse_master,
-    rating_cache_df
+def discover_date(
+    meeting_date
 ):
-
-    print()
-
-    print(
-        "=" * 70
-    )
-
-    print(
-        f"DAILY CHECKPOINT: "
-        f"{meeting_date.strftime('%Y-%m-%d')}"
-    )
-
-    print(
-        "=" * 70
-    )
-
-    save_horse_master(
-        horse_master
-    )
-
-    save_horse_rating_cache(
-        rating_cache_df
-    )
-
-    print(
-        f"Checkpoint complete: "
-        f"{meeting_date.strftime('%Y-%m-%d')}"
-    )
-
-
-# ============================================================
-# PROCESS ONE DATE
-# ============================================================
-
-def process_date(
-    meeting_date,
-    existing_result_ids,
-    horse_master,
-    age_refresh_pending,
-    rating_cache_df
-):
-
-    print()
-    print(
-        "=" * 70
-    )
-
-    print(
-        "Checking:",
-        meeting_date.strftime(
-            "%Y/%m/%d"
-        )
-    )
-
-    print(
-        "=" * 70
-    )
 
     response = request_race_page(
         meeting_date
@@ -5951,7 +5633,19 @@ def process_date(
 
     if response is None:
 
-        return rating_cache_df
+        return {
+            "date":
+                meeting_date,
+
+            "request_failed":
+                True,
+
+            "meeting":
+                None,
+
+            "race_numbers":
+                [],
+        }
 
     meeting = detect_meeting(
         response.text
@@ -5959,79 +5653,278 @@ def process_date(
 
     if meeting is None:
 
-        print(
-            "No HKJC meeting detected."
+        return {
+            "date":
+                meeting_date,
+
+            "request_failed":
+                False,
+
+            "meeting":
+                None,
+
+            "race_numbers":
+                [],
+        }
+
+    return {
+        "date":
+            meeting_date,
+
+        "request_failed":
+            False,
+
+        "meeting":
+            meeting,
+
+        "race_numbers":
+            detect_race_numbers(
+                response.text
+            ),
+    }
+
+
+def discover_month(
+    start_date,
+    end_date
+):
+
+    dates = list(
+        date_range(
+            start_date,
+            end_date
         )
-
-        return rating_cache_df
-
-    racecourse_code = (
-        meeting[
-            "racecourse_code"
-        ]
     )
 
-    racecourse_name = (
-        meeting[
-            "racecourse_name"
-        ]
+    worker_count = (
+        choose_worker_count(
+            DATE_WORKERS,
+            len(
+                dates
+            )
+        )
+    )
+
+    print()
+    print(
+        "=" * 70
     )
 
     print(
-        "Meeting:",
-        racecourse_name
+        "PHASE 1 - "
+        "DISCOVER ALL DATES"
     )
-
-    race_numbers = (
-        detect_race_numbers(
-            response.text
-        )
-    )
-
-    if not race_numbers:
-
-        print(
-            "No races detected."
-        )
-
-        return rating_cache_df
 
     print(
-        "Races:",
-        race_numbers
+        "=" * 70
     )
 
-    completed_races = 0
-
-    for race_no in race_numbers:
-
-        print()
-
-        print(
-            f"Processing Race "
-            f"{race_no}"
+    print(
+        "Dates queued:",
+        len(
+            dates
         )
+    )
 
-        race_url = build_url(
+    print(
+        "Concurrent date workers:",
+        worker_count
+    )
+
+    discoveries = []
+    failures = 0
+
+    with ThreadPoolExecutor(
+        max_workers=
+            worker_count
+    ) as executor:
+
+        futures = {
+            executor.submit(
+                discover_date,
+                meeting_date
+            ):
+                meeting_date
+
+            for meeting_date in dates
+        }
+
+        for future in as_completed(
+            futures
+        ):
+
+            meeting_date = futures[
+                future
+            ]
+
+            try:
+
+                result = future.result()
+
+            except Exception as exc:
+
+                failures += 1
+
+                print(
+                    f"DATE WORKER FAILED "
+                    f"{meeting_date}: "
+                    f"{exc}"
+                )
+
+                continue
+
+            if result[
+                "request_failed"
+            ]:
+
+                failures += 1
+                continue
+
+            discoveries.append(
+                result
+            )
+
+            if (
+                result[
+                    "meeting"
+                ]
+                is not None
+            ):
+
+                meeting = result[
+                    "meeting"
+                ]
+
+                print(
+                    f"MEETING "
+                    f"{meeting_date}: "
+                    f"{meeting['racecourse_name']} "
+                    f"races="
+                    f"{result['race_numbers']}"
+                )
+
+    discoveries.sort(
+        key=lambda item:
+            item[
+                "date"
+            ]
+    )
+
+    meeting_days = sum(
+        1
+
+        for item in discoveries
+
+        if item[
+            "meeting"
+        ] is not None
+    )
+
+    print(
+        f"Date discovery complete: "
+        f"{meeting_days} meeting days, "
+        f"{failures} failures."
+    )
+
+    return (
+        discoveries,
+        failures
+    )
+
+
+# ============================================================
+# PHASE 2 - FETCH EVERY RACE
+# ============================================================
+
+def build_race_tasks(
+    discoveries
+):
+
+    tasks = []
+
+    for item in discoveries:
+
+        meeting = item[
+            "meeting"
+        ]
+
+        if meeting is None:
+            continue
+
+        for race_no in item[
+            "race_numbers"
+        ]:
+
+            tasks.append({
+                "date":
+                    item[
+                        "date"
+                    ],
+
+                "racecourse_code":
+                    meeting[
+                        "racecourse_code"
+                    ],
+
+                "racecourse_name":
+                    meeting[
+                        "racecourse_name"
+                    ],
+
+                "race_no":
+                    race_no,
+            })
+
+    return tasks
+
+
+def fetch_and_parse_race(
+    task
+):
+
+    meeting_date = task[
+        "date"
+    ]
+
+    racecourse_code = task[
+        "racecourse_code"
+    ]
+
+    racecourse_name = task[
+        "racecourse_name"
+    ]
+
+    race_no = task[
+        "race_no"
+    ]
+
+    race_url = build_url(
+        meeting_date,
+        racecourse_code,
+        race_no
+    )
+
+    response = (
+        request_race_page(
             meeting_date,
             racecourse_code,
             race_no
         )
+    )
 
-        race_response = (
-            request_race_page(
-                meeting_date,
-                racecourse_code,
-                race_no
-            )
+    if response is None:
+
+        return (
+            task,
+            None,
+            "request failed"
         )
 
-        if race_response is None:
-            continue
+    try:
 
         metadata = (
             extract_race_metadata(
-                race_response.text,
+                response.text,
                 meeting_date,
                 racecourse_code,
                 racecourse_name,
@@ -6042,98 +5935,261 @@ def process_date(
 
         results_df = (
             extract_results(
-                race_response.text,
+                response.text,
                 metadata
             )
         )
 
-        if results_df is None:
+    except Exception as exc:
 
-            print(
-                "No horse results found."
-            )
-
-            continue
-
-        print(
-            f"Found "
-            f"{len(results_df)} "
-            f"horse result rows."
+        return (
+            task,
+            None,
+            f"parse failed: {exc}"
         )
 
-        # ====================================================
-        # ALL REQUIRED HORSES FOR THIS RACE
-        # ARE FETCHED CONCURRENTLY HERE
-        # ====================================================
+    if (
+        results_df is None
+        or
+        results_df.empty
+    ):
 
-        rating_cache_df = (
-            ensure_horse_data(
-                results_df,
-                horse_master,
-                age_refresh_pending,
-                rating_cache_df
-            )
+        return (
+            task,
+            None,
+            "results table missing/empty"
         )
 
-        # Static horse information
-        results_df = (
-            enrich_results_with_horse_master(
-                results_df,
-                horse_master
-            )
-        )
+    return (
+        task,
+        results_df,
+        None
+    )
 
-        # race_class + rating matched from horse profile form.
-        results_df = (
-            apply_rating_cache_to_results(
-                results_df,
-                rating_cache_df
-            )
-        )
 
-        append_results(
-            results_df,
-            existing_result_ids
-        )
+def fetch_month_races(
+    discoveries
+):
 
-        completed_races += 1
+    tasks = build_race_tasks(
+        discoveries
+    )
 
-        print(
-            f"Race "
-            f"{race_no} "
-            f"saved."
-        )
+    if not tasks:
 
-        # No horse delay.
-        # Only delay before requesting next race.
-        if (
-            RACE_DELAY_SECONDS
-            >
+        return (
+            pd.DataFrame(),
             0
+        )
+
+    worker_count = (
+        choose_worker_count(
+            RACE_WORKERS,
+            len(
+                tasks
+            )
+        )
+    )
+
+    print()
+    print(
+        "=" * 70
+    )
+
+    print(
+        "PHASE 2 - "
+        "FETCH ALL RACES"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "Race pages queued:",
+        len(
+            tasks
+        )
+    )
+
+    print(
+        "Concurrent race workers:",
+        worker_count
+    )
+
+    race_frames = []
+    failures = 0
+    completed = 0
+
+    with ThreadPoolExecutor(
+        max_workers=
+            worker_count
+    ) as executor:
+
+        futures = {
+            executor.submit(
+                fetch_and_parse_race,
+                task
+            ):
+                task
+
+            for task in tasks
+        }
+
+        for future in as_completed(
+            futures
         ):
 
-            time.sleep(
-                RACE_DELAY_SECONDS
+            task = futures[
+                future
+            ]
+
+            try:
+
+                (
+                    returned_task,
+                    results_df,
+                    error
+                ) = future.result()
+
+            except Exception as exc:
+
+                failures += 1
+
+                print(
+                    f"RACE WORKER FAILED "
+                    f"{task['date']} "
+                    f"R{task['race_no']}: "
+                    f"{exc}"
+                )
+
+                continue
+
+            if error is not None:
+
+                failures += 1
+
+                print(
+                    f"RACE FAILED "
+                    f"{returned_task['date']} "
+                    f"R{returned_task['race_no']}: "
+                    f"{error}"
+                )
+
+                continue
+
+            race_frames.append(
+                results_df
             )
 
-    if completed_races > 0:
+            completed += 1
 
-        print()
+            if (
+                completed % 10
+                ==
+                0
+                or
+                completed
+                ==
+                len(
+                    tasks
+                )
+            ):
 
-        print(
-            f"Completed "
-            f"{completed_races} races "
-            f"for "
-            f"{meeting_date.strftime('%Y-%m-%d')}"
+                print(
+                    f"Race phase progress: "
+                    f"{completed}/"
+                    f"{len(tasks)}"
+                )
+
+    if not race_frames:
+
+        return (
+            pd.DataFrame(),
+            failures
         )
 
-        save_daily_checkpoint(
-            meeting_date,
-            horse_master,
-            rating_cache_df
+    month_results = pd.concat(
+        race_frames,
+        ignore_index=True
+    )
+
+    if (
+        "result_id"
+        in
+        month_results.columns
+    ):
+
+        month_results = (
+            month_results.drop_duplicates(
+                subset=[
+                    "result_id"
+                ],
+                keep="last"
+            )
         )
 
-    return rating_cache_df
+    month_results[
+        "_date_sort"
+    ] = pd.to_datetime(
+        month_results[
+            "race_date"
+        ],
+        errors="coerce"
+    )
+
+    month_results[
+        "_race_sort"
+    ] = pd.to_numeric(
+        month_results[
+            "race_number"
+        ],
+        errors="coerce"
+    )
+
+    month_results[
+        "_horse_sort"
+    ] = pd.to_numeric(
+        month_results[
+            "horse_number"
+        ],
+        errors="coerce"
+    )
+
+    month_results = (
+        month_results.sort_values(
+            [
+                "_date_sort",
+                "_race_sort",
+                "_horse_sort",
+            ],
+
+            kind="stable"
+        )
+        .drop(
+            columns=[
+                "_date_sort",
+                "_race_sort",
+                "_horse_sort",
+            ],
+
+            errors="ignore"
+        )
+    )
+
+    print(
+        f"Race phase complete: "
+        f"{completed} races parsed, "
+        f"{len(month_results)} runner rows, "
+        f"{failures} failures."
+    )
+
+    return (
+        month_results.reset_index(
+            drop=True
+        ),
+        failures
+    )
 
 
 # ============================================================
@@ -6164,12 +6220,9 @@ def main():
 
     except ValueError:
 
-        print(
-            "Dates must use "
-            "YYYY-MM-DD."
+        raise SystemExit(
+            "Dates must use YYYY-MM-DD."
         )
-
-        return
 
     if (
         start_date
@@ -6177,12 +6230,10 @@ def main():
         end_date
     ):
 
-        print(
+        raise SystemExit(
             "START_DATE cannot "
             "be after END_DATE."
         )
-
-        return
 
     (
         horse_master,
@@ -6198,25 +6249,8 @@ def main():
     )
 
     print(
-        "Horse master records:",
-        len(
-            horse_master
-        )
-    )
-
-    print(
-        "Horse form/rating "
-        "cache rows:",
-        len(
-            rating_cache_df
-        )
-    )
-
-    print()
-
-    print(
-        "HKJC Historical "
-        "Results Collector"
+        "HKJC WHOLE-MONTH "
+        "CONCURRENT COLLECTOR"
     )
 
     print(
@@ -6244,99 +6278,128 @@ def main():
     )
 
     print(
-        "Horse profiles needing "
-        "age refresh:",
+        "Horse form/rating cache rows:",
         len(
-            age_refresh_pending
+            rating_cache_df
         )
     )
 
-    if MAX_HORSE_WORKERS <= 0:
-
-        print(
-            "Concurrent horse workers: "
-            "AUTO - all required horses "
-            "in each race"
+    print(
+        "DATE_WORKERS:",
+        (
+            "ALL"
+            if DATE_WORKERS == 0
+            else DATE_WORKERS
         )
+    )
 
-    else:
-
-        print(
-            "Maximum concurrent "
-            "horse workers:",
-            MAX_HORSE_WORKERS
+    print(
+        "RACE_WORKERS:",
+        (
+            "ALL"
+            if RACE_WORKERS == 0
+            else RACE_WORKERS
         )
-
-    print(
-        "Race delay seconds:",
-        RACE_DELAY_SECONDS
     )
 
     print(
-        "HTTP retries:",
-        HTTP_RETRIES
+        "HORSE_WORKERS:",
+        (
+            "ALL"
+            if HORSE_WORKERS == 0
+            else HORSE_WORKERS
+        )
     )
 
-    print(
-        "HTTP backoff factor:",
-        HTTP_BACKOFF_FACTOR
-    )
+    # ========================================================
+    # PHASE 1
+    # Every date in the month concurrently.
+    # ========================================================
 
-    for meeting_date in date_range(
+    (
+        discoveries,
+        date_failures
+    ) = discover_month(
         start_date,
         end_date
-    ):
+    )
 
-        try:
+    # ========================================================
+    # PHASE 2
+    # Every race across every discovered meeting concurrently.
+    # ========================================================
 
-            rating_cache_df = (
-                process_date(
-                    meeting_date,
-                    existing_result_ids,
-                    horse_master,
-                    age_refresh_pending,
-                    rating_cache_df
-                )
+    (
+        month_results,
+        race_failures
+    ) = fetch_month_races(
+        discoveries
+    )
+
+    if month_results.empty:
+
+        print(
+            "No race result rows "
+            "were collected."
+        )
+
+        if (
+            date_failures
+            or
+            race_failures
+        ):
+
+            raise SystemExit(
+                1
             )
 
-        except Exception as exc:
+        return
 
-            print()
+    # ========================================================
+    # PHASE 3
+    #
+    # Deduplicate ALL horses across the entire month.
+    #
+    # A horse appearing in 3 races is still downloaded only
+    # once if its page needs refreshing.
+    # ========================================================
 
-            print(
-                f"ERROR while processing "
-                f"{meeting_date}:",
-                exc
-            )
+    (
+        rating_cache_df,
+        horse_failures
+    ) = ensure_horse_data(
+        month_results,
+        horse_master,
+        age_refresh_pending,
+        rating_cache_df
+    )
 
-            print(
-                "Performing emergency "
-                "save of in-memory "
-                "horse data..."
-            )
+    # ========================================================
+    # LOCAL ENRICHMENT
+    # ========================================================
 
-            try:
+    month_results = (
+        enrich_results_with_horse_master(
+            month_results,
+            horse_master
+        )
+    )
 
-                save_horse_master(
-                    horse_master
-                )
+    month_results = (
+        apply_rating_cache_to_results(
+            month_results,
+            rating_cache_df
+        )
+    )
 
-                save_horse_rating_cache(
-                    rating_cache_df
-                )
+    append_results(
+        month_results,
+        existing_result_ids
+    )
 
-                print(
-                    "Emergency save complete."
-                )
-
-            except Exception as save_exc:
-
-                print(
-                    "Emergency save failed:",
-                    save_exc
-                )
-
-            continue
+    # ========================================================
+    # SAVE ONCE AT END OF MONTH
+    # ========================================================
 
     print()
     print(
@@ -6359,8 +6422,6 @@ def main():
         rating_cache_df
     )
 
-    # Bulk processing once at the end.
-    # None of these make horse-page GET requests.
     backfill_existing_results(
         horse_master
     )
@@ -6371,10 +6432,17 @@ def main():
 
     calculate_historical_career_stats()
 
-    print()
+    total_failures = (
+        date_failures
+        +
+        race_failures
+        +
+        horse_failures
+    )
 
+    print()
     print(
-        "Collection complete."
+        "Month processing complete."
     )
 
     print(
@@ -6388,18 +6456,28 @@ def main():
     )
 
     print(
-        "Horse rating/form cache:",
+        "Horse form/rating cache:",
         HORSE_RATINGS_CACHE_FILE
     )
 
-    if age_refresh_pending:
+    print(
+        "Request/worker failures:",
+        total_failures
+    )
 
-        print(
-            "Horse profiles still "
-            "awaiting age refresh:",
-            len(
-                age_refresh_pending
-            )
+    # If something still failed after all HTTP retries,
+    # return non-zero.
+    #
+    # The YAML below will:
+    #
+    # 1. commit any partial useful results/cache
+    # 2. NOT advance collector_state.txt
+    # 3. mark workflow failed
+    # 4. allow the recovery schedule to retry the same month
+    if total_failures:
+
+        raise SystemExit(
+            1
         )
 
 
