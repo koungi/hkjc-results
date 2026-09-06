@@ -58,12 +58,54 @@ jobs:
 
       # ==========================================================
       # CHECKOUT
+      #
+      # lfs: true is required because the aggregate result files
+      # are stored with Git LFS.
       # ==========================================================
 
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          lfs: true
+
+
+      # ==========================================================
+      # CONFIGURE GIT LFS
+      #
+      # all_results.csv has exceeded GitHub's normal 100 MiB
+      # per-file Git limit.
+      #
+      # Both aggregate CSV files are therefore stored with
+      # Git Large File Storage.
+      #
+      # git lfs track updates .gitattributes automatically.
+      # ==========================================================
+
+      - name: Configure Git LFS
+        shell: bash
+
+        run: |
+
+          echo "=================================================="
+          echo "CONFIGURING GIT LFS"
+          echo "=================================================="
+
+          git lfs install --local
+
+          git lfs track \
+            "results/races/all_results.csv"
+
+          git lfs track \
+            "results/races/all_results_ML.csv"
+
+          echo ""
+          echo "Current .gitattributes:"
+          echo "--------------------------------------------------"
+
+          cat .gitattributes
+
+          echo "--------------------------------------------------"
 
 
       # ==========================================================
@@ -82,7 +124,9 @@ jobs:
 
       - name: Install packages
         run: |
+
           python -m pip install --upgrade pip
+
           pip install -r requirements.txt
 
 
@@ -302,8 +346,6 @@ jobs:
           # SUBMITTED AT THE SAME TIME, CHANGE THIS TO:
           #
           # HORSE_WORKERS: "0"
-          #
-          # THIS IS THE SETTING YOU ASKED ABOUT.
           # ------------------------------------------------------
 
           HORSE_WORKERS: "20"
@@ -465,6 +507,12 @@ jobs:
       #
       # collector_state.txt is NOT advanced when scraper failed,
       # so the same month will be retried.
+      #
+      # IMPORTANT:
+      #
+      # all_results.csv and all_results_ML.csv are explicitly
+      # renormalized here so Git stores them as LFS pointer files
+      # rather than ordinary Git blobs.
       # ==========================================================
 
       - name: Commit results
@@ -475,6 +523,11 @@ jobs:
 
         run: |
 
+          echo "=================================================="
+          echo "PREPARING RESULTS FOR COMMIT"
+          echo "=================================================="
+
+
           git config \
             user.name \
             "github-actions[bot]"
@@ -483,6 +536,61 @@ jobs:
           git config \
             user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+          # ------------------------------------------------------
+          # MAKE SURE LFS IS ACTIVE
+          # ------------------------------------------------------
+
+          git lfs install --local
+
+
+          # ------------------------------------------------------
+          # GIT LFS TRACKING RULES
+          #
+          # Running this again is safe and guarantees the rules
+          # exist before the files are staged.
+          # ------------------------------------------------------
+
+          git lfs track \
+            "results/races/all_results.csv"
+
+          git lfs track \
+            "results/races/all_results_ML.csv"
+
+
+          # ------------------------------------------------------
+          # ATTRIBUTES
+          # ------------------------------------------------------
+
+          if [ -f .gitattributes ]; then
+
+            git add .gitattributes
+
+          fi
+
+
+          # ------------------------------------------------------
+          # CONVERT EXISTING AGGREGATE CSV TO LFS
+          #
+          # This is important because all_results.csv existed
+          # before its LFS tracking rule was added.
+          # ------------------------------------------------------
+
+          if [ -f results/races/all_results.csv ]; then
+
+            git add --renormalize \
+              results/races/all_results.csv
+
+          fi
+
+
+          if [ -f results/races/all_results_ML.csv ]; then
+
+            git add --renormalize \
+              results/races/all_results_ML.csv
+
+          fi
 
 
           # ------------------------------------------------------
@@ -508,6 +616,39 @@ jobs:
 
 
           # ------------------------------------------------------
+          # SHOW LFS FILES
+          # ------------------------------------------------------
+
+          echo ""
+          echo "=================================================="
+          echo "FILES CURRENTLY TRACKED BY GIT LFS"
+          echo "=================================================="
+
+          git lfs ls-files || true
+
+          echo "=================================================="
+
+
+          # ------------------------------------------------------
+          # VERIFY all_results.csv IS USING LFS
+          # ------------------------------------------------------
+
+          if [ -f results/races/all_results.csv ]; then
+
+            echo ""
+            echo "Git attributes for all_results.csv:"
+
+            git check-attr \
+              filter \
+              diff \
+              merge \
+              -- \
+              results/races/all_results.csv
+
+          fi
+
+
+          # ------------------------------------------------------
           # COMMIT ONLY WHEN SOMETHING CHANGED
           # ------------------------------------------------------
 
@@ -517,9 +658,25 @@ jobs:
 
           else
 
+            echo ""
+            echo "Changes staged for commit:"
+            echo "--------------------------------------------------"
+
+            git status --short
+
+            echo "--------------------------------------------------"
+
+
             git commit \
               -m "Add HKJC results ${{ steps.dates.outputs.start_date }} to ${{ steps.dates.outputs.end_date }}"
 
+
+            # ----------------------------------------------------
+            # NORMAL GIT PUSH ALSO RUNS THE GIT LFS PRE-PUSH HOOK.
+            #
+            # The LFS object is uploaded first and GitHub receives
+            # only the small pointer file in the Git commit.
+            # ----------------------------------------------------
 
             git push
 
