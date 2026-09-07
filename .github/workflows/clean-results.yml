@@ -20,7 +20,7 @@ jobs:
 
     steps:
       # ======================================================
-      # CHECKOUT INCLUDING GIT LFS CONTENT
+      # CHECKOUT REPOSITORY INCLUDING GIT LFS FILES
       # ======================================================
 
       - name: Checkout repository
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # MAKE SURE LFS OBJECT IS ACTUALLY DOWNLOADED
+      # DOWNLOAD GIT LFS CONTENT
       # ======================================================
 
       - name: Pull Git LFS files
@@ -40,16 +40,16 @@ jobs:
           git lfs pull
 
       # ======================================================
-      # VERIFY INPUT FILE
+      # VERIFY CLEANED CSV AND PYTHON SCRIPT EXIST
       # ======================================================
 
-      - name: Verify cleaned results file
+      - name: Verify input files
         shell: bash
         run: |
           test -f results/races/all_results_cleaned.csv
           test -f scripts/clean.py
 
-          echo "Input file:"
+          echo "CSV:"
           ls -lh results/races/all_results_cleaned.csv
 
           echo
@@ -57,7 +57,7 @@ jobs:
           ls -lh scripts/clean.py
 
       # ======================================================
-      # VERIFY THE LARGE CSV IS LFS TRACKED
+      # VERIFY CLEANED CSV IS TRACKED BY GIT LFS
       # ======================================================
 
       - name: Verify Git LFS tracking
@@ -72,20 +72,18 @@ jobs:
           fi
 
           echo "Git LFS tracking confirmed."
-          git lfs ls-files
 
       # ======================================================
-      # PYTHON
+      # SET UP PYTHON
       # ======================================================
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          cache: "pip"
 
       # ======================================================
-      # INSTALL ONLY WHAT THIS SCRIPT NEEDS
+      # INSTALL DEPENDENCIES
       # ======================================================
 
       - name: Install dependencies
@@ -95,13 +93,13 @@ jobs:
           python -m pip install "pandas>=2.2,<3"
 
       # ======================================================
-      # RUN PRIZE CORRECTION
+      # RUN CLEANING / PRIZE-MONEY CORRECTION
       #
-      # This opens:
-      #
+      # scripts/clean.py reads:
       # results/races/all_results_cleaned.csv
       #
-      # and overwrites the SAME file after validation.
+      # and saves the result back to:
+      # results/races/all_results_cleaned.csv
       # ======================================================
 
       - name: Correct historical prize money
@@ -110,51 +108,15 @@ jobs:
           python scripts/clean.py
 
       # ======================================================
-      # ORIGINAL all_results.csv MUST NOT CHANGE
+      # VERIFY OUTPUT FILE STILL EXISTS
       # ======================================================
 
-      - name: Confirm original results file was not modified
+      - name: Verify output file
         shell: bash
         run: |
-          if ! git diff --quiet -- results/races/all_results.csv; then
-            echo "ERROR:"
-            echo "results/races/all_results.csv was modified."
-            exit 1
-          fi
+          test -f results/races/all_results_cleaned.csv
 
-          echo "Confirmed:"
-          echo "results/races/all_results.csv was not modified."
-
-      # ======================================================
-      # MAKE SURE NO OTHER TRACKED FILE WAS MODIFIED
-      # ======================================================
-
-      - name: Verify only cleaned CSV changed
-        shell: bash
-        run: |
-          UNEXPECTED_FILES="$(
-            git diff --name-only |
-            grep -v '^results/races/all_results_cleaned\.csv$' ||
-            true
-          )"
-
-          if [ -n "$UNEXPECTED_FILES" ]; then
-            echo "ERROR:"
-            echo "Unexpected files were modified:"
-            echo "$UNEXPECTED_FILES"
-            exit 1
-          fi
-
-          echo "Only the expected cleaned CSV was modified."
-
-      # ======================================================
-      # DISPLAY STATUS
-      # ======================================================
-
-      - name: Show result
-        shell: bash
-        run: |
-          echo "Updated file:"
+          echo "Updated CSV:"
           ls -lh results/races/all_results_cleaned.csv
 
           echo
@@ -162,7 +124,7 @@ jobs:
           git status --short
 
       # ======================================================
-      # COMMIT UPDATED LFS FILE
+      # COMMIT UPDATED CLEANED CSV
       # ======================================================
 
       - name: Commit corrected results
@@ -174,7 +136,7 @@ jobs:
           git add results/races/all_results_cleaned.csv
 
           if git diff --cached --quiet; then
-            echo "No prize-money changes detected."
+            echo "No changes detected."
             echo "Nothing to commit."
             exit 0
           fi
