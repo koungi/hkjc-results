@@ -1,0 +1,67 @@
+name: Clean race results
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "results/races/all_results.csv"
+      - "scripts/clean.py"
+
+permissions:
+  contents: write
+
+jobs:
+  clean-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with Git LFS
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Pull Git LFS files
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Clean dam_sire column
+        run: |
+          python scripts/clean.py
+
+      - name: Track cleaned CSV with Git LFS
+        run: |
+          git lfs track "results/races/all_results_cleaned.csv"
+
+      - name: Verify cleaned file exists
+        run: |
+          test -f results/races/all_results_cleaned.csv
+          ls -lh results/races/all_results.csv
+          ls -lh results/races/all_results_cleaned.csv
+
+      - name: Verify cleaned file is tracked by Git LFS
+        run: |
+          git check-attr filter -- results/races/all_results_cleaned.csv
+          git lfs ls-files
+
+      - name: Commit cleaned CSV
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .gitattributes
+          git add results/races/all_results_cleaned.csv
+
+          if git diff --cached --quiet; then
+            echo "No changes detected. Nothing to commit."
+          else
+            git commit -m "Clean dam_sire values in race results"
+            git push
+          fi
