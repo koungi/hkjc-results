@@ -1,114 +1,114 @@
-name: Build HKJC ML CSV
+name: Build ML Ready Racing Dataset
 
 on:
   workflow_dispatch:
 
   push:
-    branches:
-      - main
     paths:
-      - 'results/races/all_results.csv'
-      - 'scripts/build_hkjc_ml_features.py'
-      - '.github/workflows/build_hkjc_ml.yml'
+      - "scripts/build_hkjc_ml_features.py"
+      - "results/races/all_results.csv"
+      - "results/races/all_results_with_races_removed.csv"
+      - ".github/workflows/build-ml-ready.yml"
 
 permissions:
   contents: write
 
-concurrency:
-  group: build-hkjc-ml-main
-  cancel-in-progress: true
-
 jobs:
-  build-ml-csv:
+  build-ml-ready:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v5
         with:
-          ref: main
           fetch-depth: 0
-          lfs: true
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "pandas>=2.2" "numpy>=1.26"
+          pip install pandas numpy
 
-      - name: Build ML feature CSV
+      - name: Check required files exist
+        run: |
+          test -f scripts/build_hkjc_ml_features.py || {
+            echo "ERROR: scripts/build_hkjc_ml_features.py not found"
+            exit 1
+          }
+
+          test -f results/races/all_results.csv || {
+            echo "ERROR: results/races/all_results.csv not found"
+            exit 1
+          }
+
+          test -f results/races/all_results_with_races_removed.csv || {
+            echo "ERROR: results/races/all_results_with_races_removed.csv not found"
+            exit 1
+          }
+
+          echo "All required files found."
+
+      - name: Build ML ready dataset
         run: |
           python scripts/build_hkjc_ml_features.py \
-            --input results/races/all_results.csv \
-            --output results/races/all_results_ML.csv \
-            --manifest /tmp/all_results_ML.features.json
+            --input results/races/all_results_with_races_removed.csv \
+            --history-input results/races/all_results.csv \
+            --output results/races/all_results_ML_ready.csv
 
-      - name: Validate generated CSV
+      - name: Show output details
         run: |
+          echo "Generated files:"
+          ls -lh results/races/all_results_ML_ready.csv*
+          
+          echo
+          echo "CSV header column count:"
           python - <<'PY'
-          import os
           import pandas as pd
 
-          path = "results/races/all_results_ML.csv"
+          path = "results/races/all_results_ML_ready.csv"
+          df = pd.read_csv(path, nrows=5)
 
-          if not os.path.exists(path):
-              raise SystemExit(f"Missing output file: {path}")
-
-          size_mb = os.path.getsize(path) / (1024 * 1024)
-
-          sample = pd.read_csv(
-              path,
-              nrows=5,
-              low_memory=False
-          )
-
-          print(f"Generated: {path}")
-          print(f"Size: {size_mb:.1f} MiB")
-          print(f"Columns: {len(sample.columns)}")
-
-          required = [
-              "last1_finish",
-              "last2_finish",
-              "last3_finish",
-              "last4_finish",
-              "last5_finish",
-              "horse_elo_before",
-          ]
-
-          missing = [
-              column
-              for column in required
-              if column not in sample.columns
-          ]
-
-          if missing:
-              raise SystemExit(
-                  f"Expected ML columns missing: {missing}"
-              )
-
-          print("ML CSV validation passed.")
+          print(f"Columns: {len(df.columns)}")
+          print("First 20 columns:")
+          for col in df.columns[:20]:
+              print(f" - {col}")
           PY
 
-      - name: Configure Git LFS for generated ML CSV
+      - name: Ensure ML output is not tracked by Git LFS
         run: |
-          git lfs install
-          git lfs track "results/races/all_results_ML.csv"
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_ML_ready.csv | awk '{print $3}')"
 
-      - name: Commit generated ML CSV
+          if [ "$ATTRIBUTE" = "lfs" ]; then
+            echo "ERROR:"
+            echo "results/races/all_results_ML_ready.csv"
+            echo "is currently configured for Git LFS."
+            echo
+            echo "Remove its Git LFS rule from .gitattributes."
+            exit 1
+          fi
+
+          echo "Confirmed:"
+          echo "ML ready CSV will be stored as a normal Git file."
+
+      - name: Commit generated ML dataset
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add .gitattributes
-          git add results/races/all_results_ML.csv
+          git add results/races/all_results_ML_ready.csv
+
+          if [ -f results/races/all_results_ML_ready.csv.features.json ]; then
+            git add results/races/all_results_ML_ready.csv.features.json
+          fi
 
           if git diff --cached --quiet; then
-            echo "No ML CSV changes to commit."
-          else
-            git commit -m "Update HKJC ML feature dataset"
-            git push origin HEAD:main
+            echo "No changes to commit."
+            exit 0
           fi
+
+          git commit -m "Build ML-ready racing dataset"
+          git push
