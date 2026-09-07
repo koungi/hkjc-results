@@ -1,0 +1,170 @@
+name: Extract results date range
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Start date (YYYY-MM-DD)"
+        required: true
+        default: "2006-01-01"
+
+      end_date:
+        description: "End date (YYYY-MM-DD)"
+        required: true
+        default: "2015-12-31"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extract-results-date-range
+  cancel-in-progress: false
+
+jobs:
+  extract-results:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ======================================================
+      # CHECKOUT REPOSITORY INCLUDING GIT LFS
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      # ======================================================
+      # DOWNLOAD ACTUAL LFS FILE CONTENT
+      # ======================================================
+
+      - name: Pull Git LFS files
+        run: |
+          git lfs install
+          git lfs pull
+
+      # ======================================================
+      # VERIFY SOURCE FILE EXISTS
+      # ======================================================
+
+      - name: Verify source file
+        run: |
+          test -f results/races/all_results_cleaned.csv
+          test -f scripts/extract_range.py
+
+          echo "Source file:"
+          ls -lh results/races/all_results_cleaned.csv
+
+          echo
+          echo "Extraction script:"
+          ls -lh scripts/extract_range.py
+
+      # ======================================================
+      # SET UP PYTHON
+      # ======================================================
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ======================================================
+      # INSTALL PANDAS
+      # ======================================================
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pandas>=2.2,<3"
+
+      # ======================================================
+      # DISPLAY SELECTED RANGE
+      # ======================================================
+
+      - name: Show selected date range
+        run: |
+          echo "START_DATE=${{ inputs.start_date }}"
+          echo "END_DATE=${{ inputs.end_date }}"
+
+      # ======================================================
+      # RUN EXTRACTION
+      #
+      # Dates entered in the GitHub workflow UI are passed
+      # into Python as environment variables.
+      # ======================================================
+
+      - name: Extract selected date range
+        env:
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+        run: |
+          python scripts/extract_range.py
+
+      # ======================================================
+      # CONFIRM SOURCE FILE WAS NOT MODIFIED
+      # ======================================================
+
+      - name: Confirm source CSV was not modified
+        shell: bash
+        run: |
+          if ! git diff --quiet -- results/races/all_results_cleaned.csv; then
+            echo "ERROR:"
+            echo "results/races/all_results_cleaned.csv was modified."
+            exit 1
+          fi
+
+          echo "Confirmed:"
+          echo "all_results_cleaned.csv was not modified."
+
+      # ======================================================
+      # VERIFY OUTPUT FILE EXISTS
+      # ======================================================
+
+      - name: Verify output file
+        run: |
+          test -f results/races/all_results_date_range.csv
+
+          echo "Output file:"
+          ls -lh results/races/all_results_date_range.csv
+
+      # ======================================================
+      # TRACK OUTPUT WITH GIT LFS
+      #
+      # Useful if the extracted CSV is larger than 100 MB.
+      # ======================================================
+
+      - name: Track output with Git LFS
+        run: |
+          git lfs track "results/races/all_results_date_range.csv"
+
+      # ======================================================
+      # SHOW STATUS
+      # ======================================================
+
+      - name: Show Git status
+        run: |
+          git status --short
+          git check-attr filter -- results/races/all_results_date_range.csv
+
+      # ======================================================
+      # COMMIT OUTPUT
+      # ======================================================
+
+      - name: Commit extracted dataset
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .gitattributes
+          git add results/races/all_results_date_range.csv
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            echo "Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Extract race results ${{ inputs.start_date }} to ${{ inputs.end_date }}"
+          git push
