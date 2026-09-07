@@ -3,3 +3,4 @@ results/races/all_results.csv filter=lfs diff=lfs merge=lfs -text
 results/races/all_results_cleaned.csv filter=lfs diff=lfs merge=lfs -text
 results/races/all_results_date_range.csv filter=lfs diff=lfs merge=lfs -text
 results/races/all_results_date_range.csv -filter -diff -merge text
+results/races/all_results_with_races_removed.csv filter=lfs diff=lfs merge=lfs -text
