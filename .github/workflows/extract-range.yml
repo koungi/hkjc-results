@@ -28,11 +28,8 @@ jobs:
       # ======================================================
       # CHECKOUT REPOSITORY
       #
-      # Node.js 24 compatible action.
-      #
-      # LFS is required because the SOURCE:
-      # results/races/all_results_cleaned.csv
-      # is stored in Git LFS.
+      # The source all_results_cleaned.csv is stored using
+      # Git LFS, so LFS support is enabled here.
       # ======================================================
 
       - name: Checkout repository
@@ -42,7 +39,7 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # DOWNLOAD SOURCE LFS CONTENT
+      # DOWNLOAD THE ACTUAL SOURCE LFS FILE
       # ======================================================
 
       - name: Pull Git LFS source files
@@ -54,12 +51,13 @@ jobs:
       # VERIFY REQUIRED FILES
       # ======================================================
 
-      - name: Verify source file
+      - name: Verify required files
+        shell: bash
         run: |
           test -f results/races/all_results_cleaned.csv
           test -f scripts/extract_range.py
 
-          echo "Source file:"
+          echo "Source CSV:"
           ls -lh results/races/all_results_cleaned.csv
 
           echo
@@ -67,9 +65,60 @@ jobs:
           ls -lh scripts/extract_range.py
 
       # ======================================================
-      # SET UP PYTHON
+      # IMPORTANT
       #
-      # Node.js 24 compatible action.
+      # all_results_date_range.csv must NOT use Git LFS.
+      #
+      # Your repository already has an LFS rule which matches
+      # this CSV, so explicitly override that rule.
+      #
+      # The exception is added AFTER the existing LFS rules.
+      # ======================================================
+
+      - name: Exclude date range CSV from Git LFS
+        shell: bash
+        run: |
+          EXCEPTION="results/races/all_results_date_range.csv -filter -diff -merge text"
+
+          touch .gitattributes
+
+          if grep -Fxq "$EXCEPTION" .gitattributes; then
+            echo "Git LFS exception already exists."
+          else
+            echo "$EXCEPTION" >> .gitattributes
+            echo "Added Git LFS exception:"
+            echo "$EXCEPTION"
+          fi
+
+          echo
+          echo ".gitattributes:"
+          cat .gitattributes
+
+      # ======================================================
+      # VERIFY THE EXCEPTION IS ACTIVE
+      # ======================================================
+
+      - name: Verify output is excluded from Git LFS
+        shell: bash
+        run: |
+          echo "Git attributes for output:"
+          git check-attr filter diff merge text -- results/races/all_results_date_range.csv
+
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_date_range.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" = "lfs" ]; then
+            echo
+            echo "ERROR:"
+            echo "results/races/all_results_date_range.csv is still covered by Git LFS."
+            exit 1
+          fi
+
+          echo
+          echo "Confirmed:"
+          echo "all_results_date_range.csv will be stored as a normal Git file."
+
+      # ======================================================
+      # SET UP PYTHON
       # ======================================================
 
       - name: Set up Python
@@ -78,31 +127,36 @@ jobs:
           python-version: "3.12"
 
       # ======================================================
-      # INSTALL PYTHON DEPENDENCIES
+      # INSTALL DEPENDENCIES
       # ======================================================
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install "pandas>=2.2,<3"
 
       # ======================================================
-      # DISPLAY DATE RANGE
+      # DISPLAY THE SELECTED DATE RANGE
       # ======================================================
 
       - name: Show selected date range
+        shell: bash
         run: |
           echo "START_DATE=${{ inputs.start_date }}"
           echo "END_DATE=${{ inputs.end_date }}"
 
       # ======================================================
-      # RUN EXTRACTION
+      # RUN DATE RANGE EXTRACTION
       #
-      # Input:
+      # Python reads:
+      #
       # results/races/all_results_cleaned.csv
       #
-      # Output:
+      # and creates:
+      #
       # results/races/all_results_date_range.csv
+      #
+      # START_DATE and END_DATE are inclusive.
       # ======================================================
 
       - name: Extract selected date range
@@ -113,7 +167,7 @@ jobs:
           python scripts/extract_range.py
 
       # ======================================================
-      # VERIFY SOURCE WAS NOT MODIFIED
+      # VERIFY SOURCE FILE WAS NOT MODIFIED
       # ======================================================
 
       - name: Confirm source CSV was not modified
@@ -133,34 +187,39 @@ jobs:
       # ======================================================
 
       - name: Verify output file
+        shell: bash
         run: |
           test -f results/races/all_results_date_range.csv
 
-          echo "Output file:"
+          echo "Output CSV:"
           ls -lh results/races/all_results_date_range.csv
 
       # ======================================================
-      # IMPORTANT:
-      # OUTPUT MUST NOT BE STORED IN GIT LFS
+      # DOUBLE-CHECK OUTPUT IS NOT LFS
       # ======================================================
 
-      - name: Verify output is not Git LFS
+      - name: Final Git LFS check
         shell: bash
         run: |
           ATTRIBUTE="$(git check-attr filter -- results/races/all_results_date_range.csv | awk '{print $3}')"
 
+          echo "filter attribute: $ATTRIBUTE"
+
           if [ "$ATTRIBUTE" = "lfs" ]; then
+            echo
             echo "ERROR:"
-            echo "results/races/all_results_date_range.csv is covered by a Git LFS rule."
-            echo "The output must be stored as a normal Git file."
+            echo "Output CSV is still configured for Git LFS."
             exit 1
           fi
 
+          echo
           echo "Confirmed:"
-          echo "all_results_date_range.csv is NOT tracked by Git LFS."
+          echo "Output CSV is a normal Git file."
 
       # ======================================================
-      # VERIFY OUTPUT IS UNDER GITHUB'S NORMAL 100 MB LIMIT
+      # CHECK NORMAL GIT FILE SIZE
+      #
+      # GitHub blocks regular Git files larger than 100 MiB.
       # ======================================================
 
       - name: Check output file size
@@ -171,31 +230,51 @@ jobs:
           SIZE_BYTES=$(stat -c%s "$FILE")
           MAX_BYTES=104857600
 
-          echo "Output size: $SIZE_BYTES bytes"
+          echo "Output size:"
+          ls -lh "$FILE"
 
-          if [ "$SIZE_BYTES" -ge "$MAX_BYTES" ]; then
+          echo
+          echo "Exact size: $SIZE_BYTES bytes"
+
+          if [ "$SIZE_BYTES" -gt "$MAX_BYTES" ]; then
+            echo
             echo "ERROR:"
-            echo "Output CSV is 100 MB or larger."
+            echo "The generated CSV is larger than 100 MiB."
             echo "GitHub will not accept it as a normal Git file."
+            echo "Choose a smaller date range."
             exit 1
           fi
 
-          echo "Output is below 100 MB."
+          echo
+          echo "Output is below the 100 MiB GitHub limit."
 
       # ======================================================
-      # SHOW GIT STATUS
+      # SHOW STATUS BEFORE COMMIT
       # ======================================================
 
       - name: Show Git status
+        shell: bash
         run: |
+          echo "Git status:"
           git status --short
 
           echo
-          echo "Output:"
+          echo "Output file:"
           ls -lh results/races/all_results_date_range.csv
 
+          echo
+          echo "Output Git attributes:"
+          git check-attr filter diff merge text -- results/races/all_results_date_range.csv
+
       # ======================================================
-      # COMMIT OUTPUT AS A NORMAL GIT FILE
+      # COMMIT
+      #
+      # Commit:
+      #
+      # 1. .gitattributes exception
+      # 2. all_results_date_range.csv as a NORMAL Git file
+      #
+      # Do NOT run git lfs track on the output.
       # ======================================================
 
       - name: Commit extracted dataset
@@ -204,7 +283,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          git add .gitattributes
           git add results/races/all_results_date_range.csv
+
+          echo "Staged files:"
+          git diff --cached --name-only
 
           if git diff --cached --quiet; then
             echo "No changes detected."
