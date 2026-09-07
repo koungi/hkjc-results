@@ -1,5 +1,25 @@
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+
+
+# ======================================================
+# FILE
+#
+# This script ONLY reads and overwrites:
+#
+# results/races/all_results_cleaned.csv
+# ======================================================
+
+ROOT = Path(__file__).resolve().parents[1]
+
+CSV_PATH = (
+    ROOT
+    / "results"
+    / "races"
+    / "all_results_cleaned.csv"
+)
 
 
 def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
@@ -29,21 +49,20 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    # --------------------------------------------------
-    # Normalise finishing position
-    # --------------------------------------------------
+    # ======================================================
+    # NORMALISE FINISHING POSITION
+    # ======================================================
 
     df["finishing_position"] = pd.to_numeric(
         df["finishing_position"],
-        errors="coerce"
+        errors="coerce",
     )
 
     has_position = df["finishing_position"].notna()
 
-
-    # --------------------------------------------------
-    # Normalise finish time
-    # --------------------------------------------------
+    # ======================================================
+    # NORMALISE FINISH TIME
+    # ======================================================
 
     finish_time = (
         df["finish_time"]
@@ -53,44 +72,45 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
         .str.upper()
     )
 
-    no_finish_time = finish_time.isin([
-        "",
-        "---",
-        "-",
-        "NAN",
-        "NONE",
-    ])
+    no_finish_time = finish_time.isin(
+        [
+            "",
+            "---",
+            "-",
+            "NAN",
+            "NONE",
+        ]
+    )
 
     has_real_finish_time = ~no_finish_time
 
-
-    # --------------------------------------------------
-    # Determine whether the race has any official results
-    # --------------------------------------------------
+    # ======================================================
+    # DETERMINE WHETHER EACH RACE HAS AN OFFICIAL RESULT
+    # ======================================================
 
     race_has_result = (
         df.groupby("race_id")["finishing_position"]
         .transform(lambda x: x.notna().any())
     )
 
-
-    # --------------------------------------------------
-    # Determine explicitly abandoned races
+    # ======================================================
+    # DETERMINE EXPLICITLY ABANDONED RACES
     #
-    # This works if you add a race_status or
-    # race_status_raw column to your scraper.
-    # --------------------------------------------------
+    # If race_status or race_status_raw exists,
+    # inspect those columns for abandonment markers.
+    # ======================================================
 
     is_abandoned = pd.Series(
         False,
         index=df.index,
-        dtype=bool
+        dtype=bool,
     )
 
-    for status_column in ["race_status", "race_status_raw"]:
-
+    for status_column in [
+        "race_status",
+        "race_status_raw",
+    ]:
         if status_column in df.columns:
-
             status_text = (
                 df[status_column]
                 .fillna("")
@@ -102,19 +122,16 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
             is_abandoned |= status_text.str.contains(
                 r"ABANDONED|NOT OFFERED",
                 regex=True,
-                na=False
+                na=False,
             )
 
-
-    # --------------------------------------------------
-    # Assign runner-level result_status
+    # ======================================================
+    # ASSIGN RUNNER-LEVEL RESULT STATUS
     #
-    # IMPORTANT:
     # Order matters.
-    # --------------------------------------------------
+    # ======================================================
 
     conditions = [
-
         # 1. Race explicitly marked as abandoned
         is_abandoned,
 
@@ -130,7 +147,7 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
             & no_finish_time
         ),
 
-        # 5. Runner has no placing but does have a finish time
+        # 5. Runner has no placing but has a finish time
         (
             ~has_position
             & has_real_finish_time
@@ -148,24 +165,25 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
     df["result_status"] = np.select(
         conditions,
         choices,
-        default="UNKNOWN"
+        default="UNKNOWN",
     )
 
+    # ======================================================
+    # DERIVED FIELDS
+    # ======================================================
 
-    # --------------------------------------------------
-    # Optional useful derived fields
-    # --------------------------------------------------
-
-    df["actually_started"] = df["result_status"].isin([
-        "FINISHED",
-        "DISQUALIFIED",
-    ])
+    df["actually_started"] = df["result_status"].isin(
+        [
+            "FINISHED",
+            "DISQUALIFIED",
+        ]
+    )
 
     df["is_completed"] = (
         df["result_status"] == "FINISHED"
     )
 
-    # Dead heat remains a separate characteristic
+    # Dead heat remains a separate characteristic.
     df["is_dead_heat"] = (
         df["margin"]
         .fillna("")
@@ -175,122 +193,235 @@ def add_result_status(df: pd.DataFrame) -> pd.DataFrame:
         .eq("DH")
     )
 
-
     return df
 
 
-# ======================================================
-# Example usage
-# ======================================================
+def validate_results(df: pd.DataFrame) -> None:
+    """
+    Validate the generated result-status values.
+    """
 
-# If loading your CSV-style TXT file:
-df = pd.read_csv("all_results_date_range.txt")
-
-df = add_result_status(df)
-
-
-# ======================================================
-# Quick checks
-# ======================================================
-
-print("\nResult status counts:")
-print(
-    df["result_status"]
-    .value_counts(dropna=False)
-)
-
-
-print("\nResult status percentages:")
-print(
-    (
-        df["result_status"]
-        .value_counts(normalize=True, dropna=False)
-        .mul(100)
-        .round(3)
+    # FINISHED must always have a position.
+    assert not (
+        (df["result_status"] == "FINISHED")
+        & df["finishing_position"].isna()
+    ).any(), (
+        "Validation failed: "
+        "FINISHED runner found without finishing_position."
     )
-)
 
+    # DISQUALIFIED must not have a numeric position.
+    assert not (
+        (df["result_status"] == "DISQUALIFIED")
+        & df["finishing_position"].notna()
+    ).any(), (
+        "Validation failed: "
+        "DISQUALIFIED runner found with finishing_position."
+    )
 
-# Show all unusual runner results
-unusual = df[
-    df["result_status"].isin([
-        "DISQUALIFIED",
-        "WITHDRAWN",
-        "ABANDONED",
-        "NO_RESULT",
-        "UNKNOWN",
-    ])
-][
-    [
-        "race_id",
-        "race_date",
-        "racecourse_code",
-        "race_number",
-        "horse_id",
-        "horse_name",
-        "finishing_position",
-        "finish_time",
-        "odds",
-        "result_status",
-    ]
-]
-
-print("\nUnusual results:")
-print(unusual.to_string(index=False))
-
-
-# ======================================================
-# Optional validation checks
-# ======================================================
-
-# FINISHED must always have a position
-assert not (
-    (df["result_status"] == "FINISHED")
-    & df["finishing_position"].isna()
-).any()
-
-
-# DISQUALIFIED should have no numeric position
-assert not (
-    (df["result_status"] == "DISQUALIFIED")
-    & df["finishing_position"].notna()
-).any()
-
-
-# DISQUALIFIED should have a real finish time
-assert not (
-    (df["result_status"] == "DISQUALIFIED")
-    & (
+    # DISQUALIFIED should have a real finish time.
+    invalid_disqualified_time = (
         df["finish_time"]
         .fillna("")
         .astype(str)
         .str.strip()
         .str.upper()
-        .isin(["", "---", "-", "NAN", "NONE"])
-    )
-).any()
-
-
-# Dead heats should still be FINISHED
-dead_heat_non_finished = df[
-    df["is_dead_heat"]
-    & (df["result_status"] != "FINISHED")
-]
-
-if len(dead_heat_non_finished) > 0:
-    print(
-        "\nWARNING: Dead-heat rows found "
-        "without FINISHED result status:"
-    )
-
-    print(
-        dead_heat_non_finished[
+        .isin(
             [
+                "",
+                "---",
+                "-",
+                "NAN",
+                "NONE",
+            ]
+        )
+    )
+
+    assert not (
+        (df["result_status"] == "DISQUALIFIED")
+        & invalid_disqualified_time
+    ).any(), (
+        "Validation failed: "
+        "DISQUALIFIED runner found without a real finish_time."
+    )
+
+    # Dead heats should normally be FINISHED.
+    dead_heat_non_finished = df[
+        df["is_dead_heat"]
+        & (df["result_status"] != "FINISHED")
+    ]
+
+    if not dead_heat_non_finished.empty:
+        print(
+            "\nWARNING: Dead-heat rows found "
+            "without FINISHED result status:"
+        )
+
+        columns = [
+            column
+            for column in [
                 "race_id",
                 "horse_name",
                 "finishing_position",
                 "margin",
                 "result_status",
             ]
-        ].to_string(index=False)
+            if column in dead_heat_non_finished.columns
+        ]
+
+        print(
+            dead_heat_non_finished[
+                columns
+            ].to_string(index=False)
+        )
+
+
+def main() -> None:
+    # ======================================================
+    # VERIFY FILE EXISTS
+    # ======================================================
+
+    if not CSV_PATH.is_file():
+        raise FileNotFoundError(
+            f"Input CSV does not exist: {CSV_PATH}"
+        )
+
+    print("Opening:")
+    print(CSV_PATH)
+
+    # ======================================================
+    # OPEN THE CLEANED RESULTS CSV
+    # ======================================================
+
+    df = pd.read_csv(
+        CSV_PATH,
+        low_memory=False,
     )
+
+    print(f"\nRows loaded: {len(df):,}")
+    print(f"Columns loaded: {len(df.columns):,}")
+
+    # ======================================================
+    # REQUIRED COLUMNS
+    # ======================================================
+
+    required_columns = [
+        "race_id",
+        "finishing_position",
+        "finish_time",
+        "margin",
+    ]
+
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            "Required columns are missing from "
+            "all_results_cleaned.csv: "
+            + ", ".join(missing_columns)
+        )
+
+    # ======================================================
+    # ADD RESULT STATUS
+    # ======================================================
+
+    df = add_result_status(df)
+
+    # ======================================================
+    # QUICK CHECKS
+    # ======================================================
+
+    print("\nResult status counts:")
+
+    print(
+        df["result_status"]
+        .value_counts(dropna=False)
+    )
+
+    print("\nResult status percentages:")
+
+    print(
+        (
+            df["result_status"]
+            .value_counts(
+                normalize=True,
+                dropna=False,
+            )
+            .mul(100)
+            .round(3)
+        )
+    )
+
+    # ======================================================
+    # SHOW UNUSUAL RESULTS
+    # ======================================================
+
+    unusual = df[
+        df["result_status"].isin(
+            [
+                "DISQUALIFIED",
+                "WITHDRAWN",
+                "ABANDONED",
+                "NO_RESULT",
+                "UNKNOWN",
+            ]
+        )
+    ]
+
+    unusual_columns = [
+        column
+        for column in [
+            "race_id",
+            "race_date",
+            "racecourse_code",
+            "race_number",
+            "horse_id",
+            "horse_name",
+            "finishing_position",
+            "finish_time",
+            "odds",
+            "result_status",
+        ]
+        if column in unusual.columns
+    ]
+
+    print("\nUnusual results:")
+
+    if unusual.empty:
+        print("None.")
+    else:
+        print(
+            unusual[
+                unusual_columns
+            ].to_string(index=False)
+        )
+
+    # ======================================================
+    # VALIDATE RESULTS
+    # ======================================================
+
+    validate_results(df)
+
+    print("\nValidation passed.")
+
+    # ======================================================
+    # SAVE BACK TO THE EXACT SAME FILE
+    # ======================================================
+
+    df.to_csv(
+        CSV_PATH,
+        index=False,
+    )
+
+    print("\nSaved:")
+    print(CSV_PATH)
+
+    print(f"Rows saved: {len(df):,}")
+
+
+if __name__ == "__main__":
+    main()
