@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # ENSURE LFS OBJECTS ARE DOWNLOADED
+      # ENSURE GIT LFS FILES ARE DOWNLOADED
       # ======================================================
 
       - name: Pull Git LFS files
@@ -45,7 +45,7 @@ jobs:
       # VERIFY REQUIRED FILES EXIST
       # ======================================================
 
-      - name: Verify input files
+      - name: Verify required files
         shell: bash
         run: |
           set -euo pipefail
@@ -81,14 +81,15 @@ jobs:
           fi
 
           echo "Git LFS tracking confirmed."
+
           echo
           git lfs ls-files
 
       # ======================================================
-      # VERIFY WE HAVE THE REAL CSV, NOT AN LFS POINTER
+      # VERIFY REAL CSV CONTENT WAS DOWNLOADED
       # ======================================================
 
-      - name: Verify LFS file was downloaded
+      - name: Verify LFS content
         shell: bash
         run: |
           set -euo pipefail
@@ -97,7 +98,7 @@ jobs:
              grep -q '^version https://git-lfs.github.com/spec/v1'; then
 
             echo "ERROR:"
-            echo "all_results_cleaned.csv is still an LFS pointer."
+            echo "results/races/all_results_cleaned.csv is still an LFS pointer."
             exit 1
           fi
 
@@ -127,11 +128,11 @@ jobs:
       # ======================================================
       # RUN CLEANING SCRIPT
       #
-      # Expected:
-      # - reads results/races/all_results_cleaned.csv
-      # - updates the same file
-      # - adds result_status
-      # - applies prize-money corrections
+      # clean.py should read:
+      #
+      # results/races/all_results_cleaned.csv
+      #
+      # and write back to the SAME file.
       # ======================================================
 
       - name: Clean historical race results
@@ -142,7 +143,7 @@ jobs:
           python scripts/clean.py
 
       # ======================================================
-      # VERIFY OUTPUT FILE STILL EXISTS
+      # VERIFY OUTPUT EXISTS
       # ======================================================
 
       - name: Verify cleaned output
@@ -156,7 +157,7 @@ jobs:
           ls -lh results/races/all_results_cleaned.csv
 
       # ======================================================
-      # VERIFY ORIGINAL RAW RESULTS WERE NOT MODIFIED
+      # MAKE SURE ORIGINAL RAW FILE WAS NOT MODIFIED
       # ======================================================
 
       - name: Confirm original results file was not modified
@@ -174,7 +175,7 @@ jobs:
           echo "results/races/all_results.csv was not modified."
 
       # ======================================================
-      # VERIFY NO UNEXPECTED TRACKED OR UNTRACKED FILES CHANGED
+      # MAKE SURE ONLY CLEANED CSV CHANGED
       # ======================================================
 
       - name: Verify only cleaned CSV changed
@@ -206,23 +207,23 @@ jobs:
           echo "Only the expected cleaned CSV was modified."
 
       # ======================================================
-      # SHOW RESULT STATUS
+      # SHOW STATUS
       # ======================================================
 
-      - name: Show repository status
+      - name: Show result
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Git status:"
-          git status --short
-
-          echo
           echo "Updated file:"
           ls -lh results/races/all_results_cleaned.csv
 
+          echo
+          echo "Git status:"
+          git status --short
+
       # ======================================================
-      # STAGE UPDATED LFS FILE
+      # STAGE UPDATED LFS CSV
       # ======================================================
 
       - name: Stage cleaned results
@@ -236,7 +237,7 @@ jobs:
           git diff --cached --name-only
 
       # ======================================================
-      # VERIFY STAGED FILE IS STILL LFS-MANAGED
+      # VERIFY STAGED FILE IS STILL LFS MANAGED
       # ======================================================
 
       - name: Verify staged LFS file
