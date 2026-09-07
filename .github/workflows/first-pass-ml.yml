@@ -22,7 +22,11 @@ jobs:
 
     steps:
       # ======================================================
-      # CHECKOUT REPOSITORY INCLUDING GIT LFS FILES
+      # CHECKOUT REPOSITORY
+      #
+      # lfs: true is retained because the generated output file
+      # may already exist in the repository as a Git LFS file
+      # on subsequent workflow runs.
       # ======================================================
 
       - name: Checkout repository
@@ -32,10 +36,10 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # DOWNLOAD GIT LFS CONTENT
+      # INITIALISE GIT LFS
       # ======================================================
 
-      - name: Pull Git LFS files
+      - name: Initialise Git LFS
         shell: bash
         run: |
           git lfs install
@@ -43,6 +47,8 @@ jobs:
 
       # ======================================================
       # VERIFY SOURCE CSV AND PYTHON SCRIPT EXIST
+      #
+      # The source CSV is a NORMAL Git file, not Git LFS.
       # ======================================================
 
       - name: Verify input files
@@ -57,23 +63,6 @@ jobs:
           echo
           echo "Python script:"
           ls -lh scripts/first_pass_ML.py
-
-      # ======================================================
-      # VERIFY SOURCE CSV IS TRACKED BY GIT LFS
-      # ======================================================
-
-      - name: Verify source Git LFS tracking
-        shell: bash
-        run: |
-          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_date_range.csv | awk '{print $3}')"
-
-          if [ "$ATTRIBUTE" != "lfs" ]; then
-            echo "ERROR:"
-            echo "results/races/all_results_date_range.csv is not tracked by Git LFS."
-            exit 1
-          fi
-
-          echo "Source Git LFS tracking confirmed."
 
       # ======================================================
       # SET UP PYTHON
@@ -97,12 +86,10 @@ jobs:
       # ======================================================
       # RUN FIRST-PASS ML CLEANING
       #
-      # scripts/first_pass_ML.py reads:
-      #
+      # Reads:
       # results/races/all_results_date_range.csv
       #
-      # and creates:
-      #
+      # Creates:
       # results/races/all_results_with_races_removed.csv
       # ======================================================
 
@@ -123,23 +110,25 @@ jobs:
           echo "Generated CSV:"
           ls -lh results/races/all_results_with_races_removed.csv
 
+          echo
+          echo "Line count:"
+          wc -l results/races/all_results_with_races_removed.csv
+
       # ======================================================
-      # ENSURE OUTPUT CSV IS TRACKED BY GIT LFS
+      # ENSURE GENERATED OUTPUT IS TRACKED BY GIT LFS
       #
-      # If it is already covered by an existing LFS pattern,
-      # nothing needs to change.
-      #
-      # Otherwise explicitly add this file to Git LFS.
+      # The SOURCE CSV remains normal Git.
+      # Only the generated ML CSV is put into Git LFS.
       # ======================================================
 
-      - name: Ensure output uses Git LFS
+      - name: Ensure output is tracked by Git LFS
         shell: bash
         run: |
           ATTRIBUTE="$(git check-attr filter -- results/races/all_results_with_races_removed.csv | awk '{print $3}')"
 
           if [ "$ATTRIBUTE" != "lfs" ]; then
             echo "Output is not currently tracked by Git LFS."
-            echo "Adding Git LFS tracking rule..."
+            echo "Adding Git LFS rule..."
 
             git lfs track "results/races/all_results_with_races_removed.csv"
           else
@@ -154,10 +143,10 @@ jobs:
             exit 1
           fi
 
-          echo "Output Git LFS tracking confirmed."
+          echo "Git LFS tracking confirmed for output."
 
       # ======================================================
-      # SHOW FINAL DATASET INFORMATION
+      # SHOW GIT STATUS BEFORE COMMIT
       # ======================================================
 
       - name: Show output information
@@ -167,11 +156,7 @@ jobs:
           ls -lh results/races/all_results_with_races_removed.csv
 
           echo
-          echo "Line count:"
-          wc -l results/races/all_results_with_races_removed.csv
-
-          echo
-          echo "Git LFS attribute:"
+          echo "LFS attribute:"
           git check-attr filter -- results/races/all_results_with_races_removed.csv
 
           echo
@@ -179,7 +164,7 @@ jobs:
           git status --short
 
       # ======================================================
-      # COMMIT CLEANED ML DATASET
+      # COMMIT GENERATED ML DATASET
       # ======================================================
 
       - name: Commit cleaned race dataset
@@ -188,9 +173,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Add .gitattributes in case the workflow added a new
-          # Git LFS tracking rule.
+          # Add .gitattributes in case this is the first run and
+          # the workflow just created the LFS tracking rule.
           git add .gitattributes
+
           git add results/races/all_results_with_races_removed.csv
 
           if git diff --cached --quiet; then
@@ -203,10 +189,10 @@ jobs:
           git push
 
       # ======================================================
-      # VERIFY OUTPUT IS NOW REGISTERED WITH GIT LFS
+      # FINAL GIT LFS VERIFICATION
       # ======================================================
 
-      - name: Verify committed Git LFS file
+      - name: Verify output is registered with Git LFS
         shell: bash
         run: |
           echo "Git LFS files:"
@@ -214,11 +200,11 @@ jobs:
 
           if ! git lfs ls-files | grep -Fq "results/races/all_results_with_races_removed.csv"; then
             echo "ERROR:"
-            echo "Output CSV was not registered as a Git LFS file."
+            echo "Output CSV is not registered with Git LFS."
             exit 1
           fi
 
           echo
           echo "SUCCESS:"
           echo "results/races/all_results_with_races_removed.csv"
-          echo "is committed and tracked with Git LFS."
+          echo "is committed and tracked by Git LFS."
