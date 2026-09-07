@@ -1,0 +1,149 @@
+name: Convert ML Dataset to Parquet
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with Git LFS
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Pull Git LFS files
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas pyarrow
+
+      - name: Check source CSV
+        run: |
+          test -f results/races/all_results_ML_ready.csv || {
+            echo "ERROR: results/races/all_results_ML_ready.csv not found"
+            exit 1
+          }
+
+          echo "Source file:"
+          ls -lh results/races/all_results_ML_ready.csv
+
+          if head -n 1 results/races/all_results_ML_ready.csv | grep -q "git-lfs"; then
+            echo "ERROR: CSV is still an LFS pointer."
+            exit 1
+          fi
+
+          echo "Source CSV downloaded correctly."
+
+      - name: Convert CSV to Parquet
+        run: |
+          python scripts/convert_ml_csv_to_parquet.py \
+            --input results/races/all_results_ML_ready.csv \
+            --output results/races/all_results_ML_ready.parquet \
+            --compression zstd
+
+      - name: Validate Parquet
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+
+          path = Path(
+              "results/races/all_results_ML_ready.parquet"
+          )
+
+          df = pd.read_parquet(path)
+
+          print(f"Rows: {len(df):,}")
+          print(f"Columns: {len(df.columns):,}")
+
+          required = {
+              "result_id",
+              "race_id",
+              "race_date",
+              "horse_id",
+              "is_winner",
+          }
+
+          missing = required - set(df.columns)
+
+          if missing:
+              raise SystemExit(
+                  "ERROR: Missing required columns: "
+                  + ", ".join(sorted(missing))
+              )
+
+          if df["result_id"].duplicated().any():
+              raise SystemExit(
+                  "ERROR: Duplicate result_id values detected"
+              )
+
+          print()
+          print("Target distribution:")
+          print(
+              df["is_winner"]
+              .value_counts(dropna=False)
+          )
+
+          print()
+          print("Parquet validation passed.")
+          PY
+
+      - name: Track Parquet with Git LFS
+        run: |
+          git lfs track "results/races/all_results_ML_ready.parquet"
+
+          echo
+          echo "Git LFS attributes:"
+          git check-attr filter -- \
+            results/races/all_results_ML_ready.parquet
+
+      - name: Confirm Parquet uses Git LFS
+        run: |
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_ML_ready.parquet | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR: Parquet file is not configured for Git LFS."
+            exit 1
+          fi
+
+          echo "Confirmed: Parquet output uses Git LFS."
+
+      - name: Show file sizes
+        run: |
+          echo "CSV:"
+          ls -lh results/races/all_results_ML_ready.csv
+
+          echo
+          echo "Parquet:"
+          ls -lh results/races/all_results_ML_ready.parquet
+
+      - name: Commit Parquet file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .gitattributes
+          git add results/races/all_results_ML_ready.parquet
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Convert ML-ready dataset to Parquet"
+          git push
