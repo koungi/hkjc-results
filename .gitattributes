@@ -7,3 +7,4 @@ results/races/all_results_with_races_removed.csv filter=lfs diff=lfs merge=lfs -
 # First-pass ML generated output - normal Git file
 results/races/all_results_with_races_removed.csv -filter -diff -merge text
 results/races/all_results_ML_ready.csv filter=lfs diff=lfs merge=lfs -text
+results/races/all_results_ML_ready.parquet filter=lfs diff=lfs merge=lfs -text
