@@ -28,18 +28,21 @@ jobs:
       # ======================================================
       # CHECKOUT REPOSITORY
       #
-      # LFS is still required here because the SOURCE file
-      # all_results_cleaned.csv is stored using Git LFS.
+      # Node.js 24 compatible action.
+      #
+      # LFS is required because the SOURCE:
+      # results/races/all_results_cleaned.csv
+      # is stored in Git LFS.
       # ======================================================
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           lfs: true
           fetch-depth: 0
 
       # ======================================================
-      # DOWNLOAD SOURCE LFS FILE
+      # DOWNLOAD SOURCE LFS CONTENT
       # ======================================================
 
       - name: Pull Git LFS source files
@@ -48,7 +51,7 @@ jobs:
           git lfs pull
 
       # ======================================================
-      # VERIFY FILES
+      # VERIFY REQUIRED FILES
       # ======================================================
 
       - name: Verify source file
@@ -60,20 +63,22 @@ jobs:
           ls -lh results/races/all_results_cleaned.csv
 
           echo
-          echo "Extraction script:"
+          echo "Python script:"
           ls -lh scripts/extract_range.py
 
       # ======================================================
       # SET UP PYTHON
+      #
+      # Node.js 24 compatible action.
       # ======================================================
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       # ======================================================
-      # INSTALL DEPENDENCIES
+      # INSTALL PYTHON DEPENDENCIES
       # ======================================================
 
       - name: Install dependencies
@@ -82,7 +87,7 @@ jobs:
           python -m pip install "pandas>=2.2,<3"
 
       # ======================================================
-      # SHOW SELECTED RANGE
+      # DISPLAY DATE RANGE
       # ======================================================
 
       - name: Show selected date range
@@ -91,7 +96,13 @@ jobs:
           echo "END_DATE=${{ inputs.end_date }}"
 
       # ======================================================
-      # EXTRACT DATE RANGE
+      # RUN EXTRACTION
+      #
+      # Input:
+      # results/races/all_results_cleaned.csv
+      #
+      # Output:
+      # results/races/all_results_date_range.csv
       # ======================================================
 
       - name: Extract selected date range
@@ -102,7 +113,7 @@ jobs:
           python scripts/extract_range.py
 
       # ======================================================
-      # CONFIRM SOURCE FILE WAS NOT MODIFIED
+      # VERIFY SOURCE WAS NOT MODIFIED
       # ======================================================
 
       - name: Confirm source CSV was not modified
@@ -129,7 +140,8 @@ jobs:
           ls -lh results/races/all_results_date_range.csv
 
       # ======================================================
-      # MAKE SURE OUTPUT IS NOT LFS TRACKED
+      # IMPORTANT:
+      # OUTPUT MUST NOT BE STORED IN GIT LFS
       # ======================================================
 
       - name: Verify output is not Git LFS
@@ -139,24 +151,51 @@ jobs:
 
           if [ "$ATTRIBUTE" = "lfs" ]; then
             echo "ERROR:"
-            echo "all_results_date_range.csv is currently covered by a Git LFS rule."
+            echo "results/races/all_results_date_range.csv is covered by a Git LFS rule."
+            echo "The output must be stored as a normal Git file."
             exit 1
           fi
 
           echo "Confirmed:"
-          echo "all_results_date_range.csv will be stored as a normal Git file."
+          echo "all_results_date_range.csv is NOT tracked by Git LFS."
 
       # ======================================================
-      # SHOW STATUS
+      # VERIFY OUTPUT IS UNDER GITHUB'S NORMAL 100 MB LIMIT
+      # ======================================================
+
+      - name: Check output file size
+        shell: bash
+        run: |
+          FILE="results/races/all_results_date_range.csv"
+
+          SIZE_BYTES=$(stat -c%s "$FILE")
+          MAX_BYTES=104857600
+
+          echo "Output size: $SIZE_BYTES bytes"
+
+          if [ "$SIZE_BYTES" -ge "$MAX_BYTES" ]; then
+            echo "ERROR:"
+            echo "Output CSV is 100 MB or larger."
+            echo "GitHub will not accept it as a normal Git file."
+            exit 1
+          fi
+
+          echo "Output is below 100 MB."
+
+      # ======================================================
+      # SHOW GIT STATUS
       # ======================================================
 
       - name: Show Git status
         run: |
           git status --short
+
+          echo
+          echo "Output:"
           ls -lh results/races/all_results_date_range.csv
 
       # ======================================================
-      # COMMIT OUTPUT AS NORMAL GIT FILE
+      # COMMIT OUTPUT AS A NORMAL GIT FILE
       # ======================================================
 
       - name: Commit extracted dataset
