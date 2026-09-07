@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import hashlib
 import os
 import sys
 import tempfile
@@ -10,7 +9,7 @@ import pandas as pd
 
 
 # ============================================================
-# PATHS
+# FILE
 # ============================================================
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -24,9 +23,9 @@ RESULTS_FILE = (
 
 
 # ============================================================
-# PAYOUT RULE
+# HISTORICAL PAYOUT RULE
 #
-# Races BEFORE 10 September 2023 use:
+# Applies ONLY to races BEFORE 10 September 2023.
 #
 # 1st = 57%
 # 2nd = 22%
@@ -34,7 +33,10 @@ RESULTS_FILE = (
 # 4th = 6%
 # 5th = 3.5%
 #
-# 10 September 2023 onwards is NOT changed by this script.
+# 6th and below = 0%
+#
+# Races on or after 2023-09-10 are left with their existing
+# payout percentage and prize-money-won values.
 # ============================================================
 
 PAYOUT_CUTOFF = pd.Timestamp("2023-09-10")
@@ -49,18 +51,18 @@ HISTORICAL_PAYOUT_SCHEDULE = {
 
 
 # ============================================================
-# THESE ARE THE ONLY FOUR COLUMNS THIS SCRIPT MAY MODIFY
+# ONLY THESE COLUMNS MAY CHANGE
 # ============================================================
 
-TARGET_COLUMNS = {
+TARGET_COLUMNS = [
     "prize_payout_percentage",
     "prize_money_won_this_race",
     "career_prize_money_before",
     "career_prize_money_after",
-}
+]
 
 
-REQUIRED_COLUMNS = {
+REQUIRED_COLUMNS = [
     "race_id",
     "race_date",
     "race_number",
@@ -71,80 +73,50 @@ REQUIRED_COLUMNS = {
     "prize_money_won_this_race",
     "career_prize_money_before",
     "career_prize_money_after",
-}
-
-
-MONEY_TOLERANCE = 0.01
+]
 
 
 # ============================================================
-# HASH NON-TARGET COLUMNS
+# DEAD-HEAT CALCULATION
 #
-# This lets us prove that nothing outside the four prize
-# columns was changed in memory before saving.
-# ============================================================
-
-def hash_columns(df, columns):
-    digest = hashlib.sha256()
-
-    for column in columns:
-        digest.update(
-            column.encode("utf-8")
-        )
-
-        hashed = pd.util.hash_pandas_object(
-            df[column],
-            index=True,
-        )
-
-        digest.update(
-            hashed.values.tobytes()
-        )
-
-    return digest.hexdigest()
-
-
-# ============================================================
-# DEAD-HEAT PAYOUT CALCULATION
+# This preserves the dead-heat method from your original code.
 #
-# This preserves the logic from your original scraper:
+# Examples:
 #
-# If one horse has the placing:
-#     use that placing's normal percentage.
+# Two horses dead heat for 1st:
 #
-# If multiple horses share a placing:
-#     combine the percentages for the positions occupied
-#     by the dead heat, then divide equally.
+#   57% + 22% = 79%
+#   79% / 2 = 39.5% each
 #
-# Examples under the corrected historical schedule:
+# Two horses dead heat for 2nd:
 #
-# 2-way dead heat 1st:
-#     (57% + 22%) / 2 = 39.5% each
+#   22% + 11.5% = 33.5%
+#   33.5% / 2 = 16.75% each
 #
-# 2-way dead heat 2nd:
-#     (22% + 11.5%) / 2 = 16.75% each
+# Three horses dead heat for 1st:
 #
-# 2-way dead heat 4th:
-#     (6% + 3.5%) / 2 = 4.75% each
+#   57% + 22% + 11.5% = 90.5%
+#   90.5% / 3 = 30.1666667% each
 #
-# 2-way dead heat 5th:
-#     (3.5% + 0%) / 2 = 1.75% each
+# If a dead heat extends beyond 5th, positions outside the
+# schedule contribute 0%.
 # ============================================================
 
 def calculate_historical_dead_heat_percentages(df):
-    output = pd.Series(
+    payout = pd.Series(
         0.0,
         index=df.index,
         dtype="float64",
     )
 
     dead_heat_races = set()
+    dead_heat_groups = 0
 
-    historical = df[
-        df["_is_historical"]
+    historical_df = df[
+        df["_historical_race"]
     ]
 
-    for race_id, race_group in historical.groupby(
+    for race_id, race_group in historical_df.groupby(
         "race_id",
         sort=False,
         dropna=False,
@@ -156,6 +128,9 @@ def calculate_historical_dead_heat_percentages(df):
             race_group["_finish_numeric"].notna()
         ]
 
+        if valid_finishers.empty:
+            continue
+
         for finishing_position, position_group in (
             valid_finishers.groupby(
                 "_finish_numeric",
@@ -166,11 +141,15 @@ def calculate_historical_dead_heat_percentages(df):
                 finishing_position
             )
 
-            count = len(
+            number_tied = len(
                 position_group
             )
 
-            if count == 1:
+            # ------------------------------------------------
+            # NORMAL RESULT
+            # ------------------------------------------------
+
+            if number_tied == 1:
                 percentage = (
                     HISTORICAL_PAYOUT_SCHEDULE.get(
                         position,
@@ -178,199 +157,44 @@ def calculate_historical_dead_heat_percentages(df):
                     )
                 )
 
+            # ------------------------------------------------
+            # DEAD HEAT
+            #
+            # Pool the percentages for the positions consumed
+            # by the dead heat and divide equally.
+            # ------------------------------------------------
+
             else:
                 dead_heat_races.add(
                     race_id
                 )
+
+                dead_heat_groups += 1
 
                 combined_percentage = sum(
                     HISTORICAL_PAYOUT_SCHEDULE.get(
                         position + offset,
                         0.0,
                     )
-                    for offset in range(count)
+                    for offset in range(
+                        number_tied
+                    )
                 )
 
                 percentage = (
                     combined_percentage
-                    / count
+                    /
+                    number_tied
                 )
 
-            output.loc[
+            payout.loc[
                 position_group.index
             ] = percentage
 
-    return output, dead_heat_races
-
-
-# ============================================================
-# CAREER PRIZE ADJUSTMENT
-#
-# IMPORTANT:
-#
-# We do NOT rebuild career prize money blindly from zero.
-#
-# Instead, we calculate the difference introduced by the
-# corrected race prize and carry that difference forward
-# through the horse's EXISTING continuous career-money series.
-#
-# If the original data has a reset/discontinuity, for example:
-#
-# previous career_after = 5,000,000
-# next career_before     = 0
-#
-# then the correction accumulator resets too.
-#
-# This protects the known 2019 -> 2025 dataset gap and avoids
-# inventing a false continuous career history.
-# ============================================================
-
-def adjust_career_prize_money(
-    df,
-    original_prize_won,
-    corrected_prize_won,
-):
-    original_before = pd.to_numeric(
-        df["career_prize_money_before"],
-        errors="coerce",
-    )
-
-    original_after = pd.to_numeric(
-        df["career_prize_money_after"],
-        errors="coerce",
-    )
-
-    corrected_before = original_before.copy()
-    corrected_after = original_after.copy()
-
-    sort_columns = [
-        "horse_id",
-        "_race_date_sort",
-        "_race_number_sort",
-    ]
-
-    if "_race_index_sort" in df.columns:
-        sort_columns.append(
-            "_race_index_sort"
-        )
-
-    working = df.sort_values(
-        sort_columns,
-        kind="stable",
-    )
-
-    reset_count = 0
-
-    for horse_id, horse_group in working.groupby(
-        "horse_id",
-        sort=False,
-        dropna=False,
-    ):
-        cumulative_adjustment = 0.0
-        previous_original_after = None
-        first_row = True
-
-        for index in horse_group.index:
-            before = original_before.loc[
-                index
-            ]
-
-            after = original_after.loc[
-                index
-            ]
-
-            old_race_prize = original_prize_won.loc[
-                index
-            ]
-
-            new_race_prize = corrected_prize_won.loc[
-                index
-            ]
-
-            # ------------------------------------------------
-            # Detect a reset / discontinuity in the existing
-            # career prize-money sequence.
-            # ------------------------------------------------
-
-            if first_row:
-                cumulative_adjustment = 0.0
-
-            elif (
-                pd.isna(before)
-                or
-                pd.isna(previous_original_after)
-                or
-                abs(
-                    float(before)
-                    -
-                    float(previous_original_after)
-                )
-                >
-                MONEY_TOLERANCE
-            ):
-                cumulative_adjustment = 0.0
-                reset_count += 1
-
-            # ------------------------------------------------
-            # Add previous historical corrections to the
-            # career money BEFORE this race.
-            # ------------------------------------------------
-
-            if pd.notna(before):
-                corrected_before.loc[
-                    index
-                ] = round(
-                    float(before)
-                    +
-                    cumulative_adjustment,
-                    2,
-                )
-
-            # ------------------------------------------------
-            # Difference caused by correcting THIS race.
-            # ------------------------------------------------
-
-            race_adjustment = round(
-                float(new_race_prize)
-                -
-                float(old_race_prize),
-                2,
-            )
-
-            # ------------------------------------------------
-            # Career after receives:
-            #
-            # previous accumulated corrections
-            # +
-            # this race's correction
-            # ------------------------------------------------
-
-            if pd.notna(after):
-                corrected_after.loc[
-                    index
-                ] = round(
-                    float(after)
-                    +
-                    cumulative_adjustment
-                    +
-                    race_adjustment,
-                    2,
-                )
-
-            cumulative_adjustment = round(
-                cumulative_adjustment
-                +
-                race_adjustment,
-                2,
-            )
-
-            previous_original_after = after
-            first_row = False
-
     return (
-        corrected_before,
-        corrected_after,
-        reset_count,
+        payout,
+        dead_heat_races,
+        dead_heat_groups,
     )
 
 
@@ -379,53 +203,62 @@ def adjust_career_prize_money(
 # ============================================================
 
 def main():
+    print()
+    print("=" * 72)
+    print("HKJC HISTORICAL PRIZE MONEY CORRECTION")
+    print("=" * 72)
+    print()
+
+    print(
+        f"File: {RESULTS_FILE}"
+    )
+
+    print(
+        "Historical rule applies to: "
+        "race_date < 2023-09-10"
+    )
+
+    print()
+
+    # ========================================================
+    # VERIFY FILE EXISTS
+    # ========================================================
+
     if not RESULTS_FILE.exists():
         print(
-            f"ERROR: File does not exist:\n"
-            f"{RESULTS_FILE}",
+            "ERROR: File does not exist:",
+            RESULTS_FILE,
             file=sys.stderr,
         )
 
         return 1
 
-    print()
-    print("=" * 70)
-    print("HISTORICAL PRIZE MONEY CORRECTION")
-    print("=" * 70)
-    print()
-    print(f"File: {RESULTS_FILE}")
-    print(
-        "Historical cutoff: "
-        "race_date < 2023-09-10"
-    )
-    print()
-
-    # --------------------------------------------------------
-    # Read all values as objects/strings.
+    # ========================================================
+    # LOAD CSV
     #
-    # keep_default_na=False preserves blank fields as blanks.
-    # --------------------------------------------------------
+    # All columns are loaded as strings so non-target fields
+    # are preserved as closely as possible.
+    # ========================================================
 
-    df = pd.read_csv(
-        RESULTS_FILE,
-        dtype=object,
-        keep_default_na=False,
-    )
+    try:
+        df = pd.read_csv(
+            RESULTS_FILE,
+            dtype=str,
+            keep_default_na=False,
+            low_memory=False,
+        )
 
-    if df.empty:
-        print("ERROR: CSV is empty.")
+    except Exception as exc:
+        print(
+            f"ERROR reading CSV: {exc}",
+            file=sys.stderr,
+        )
+
         return 1
 
-    missing_columns = (
-        REQUIRED_COLUMNS
-        -
-        set(df.columns)
-    )
-
-    if missing_columns:
+    if df.empty:
         print(
-            "ERROR: Missing required columns:",
-            sorted(missing_columns),
+            "ERROR: CSV contains no rows.",
             file=sys.stderr,
         )
 
@@ -436,33 +269,122 @@ def main():
     )
 
     print(
-        f"Columns: {len(df.columns):,}"
+        f"Columns loaded: {len(df.columns):,}"
     )
 
-    # --------------------------------------------------------
-    # Verify that only our four allowed columns can change.
-    # --------------------------------------------------------
+    # ========================================================
+    # VERIFY REQUIRED COLUMNS
+    # ========================================================
+
+    missing_columns = [
+        column
+        for column in REQUIRED_COLUMNS
+        if column not in df.columns
+    ]
+
+    if missing_columns:
+        print()
+        print(
+            "ERROR: Required columns are missing:",
+            file=sys.stderr,
+        )
+
+        for column in missing_columns:
+            print(
+                f"  - {column}",
+                file=sys.stderr,
+            )
+
+        return 1
+
+    # ========================================================
+    # VERIFY HORSE ID
+    #
+    # Career prize money depends on grouping by horse_id.
+    # We do not want blank identities being accumulated
+    # together accidentally.
+    # ========================================================
+
+    blank_horse_ids = (
+        df["horse_id"]
+        .astype(str)
+        .str.strip()
+        .eq("")
+    )
+
+    if blank_horse_ids.any():
+        print()
+        print(
+            "ERROR: Blank horse_id values found:",
+            int(blank_horse_ids.sum()),
+            file=sys.stderr,
+        )
+
+        print(
+            "Career prize money cannot safely be rebuilt.",
+            file=sys.stderr,
+        )
+
+        return 1
+
+    # ========================================================
+    # SAVE ORIGINAL COLUMN ORDER
+    # ========================================================
+
+    original_columns = list(
+        df.columns
+    )
+
+    # ========================================================
+    # SAVE A COPY OF ALL NON-TARGET COLUMNS
+    #
+    # Later we verify that none changed.
+    # ========================================================
 
     non_target_columns = [
         column
-        for column in df.columns
+        for column in original_columns
         if column not in TARGET_COLUMNS
     ]
 
-    non_target_hash_before = hash_columns(
-        df,
-        non_target_columns,
+    original_non_target = (
+        df[
+            non_target_columns
+        ]
+        .copy(deep=True)
     )
 
-    # --------------------------------------------------------
-    # Helper numeric/date columns.
-    # These are temporary and never written to the CSV.
-    # --------------------------------------------------------
+    # ========================================================
+    # SAVE ORIGINAL ROW ORDER
+    # ========================================================
+
+    df["_original_order"] = range(
+        len(df)
+    )
+
+    # ========================================================
+    # TEMPORARY PARSED COLUMNS
+    # ========================================================
 
     df["_race_date_sort"] = pd.to_datetime(
         df["race_date"],
         errors="coerce",
     )
+
+    invalid_dates = (
+        df["_race_date_sort"]
+        .isna()
+    )
+
+    if invalid_dates.any():
+        print()
+        print(
+            "ERROR: Invalid race_date values found:",
+            int(invalid_dates.sum()),
+            file=sys.stderr,
+        )
+
+        return 1
 
     df["_race_number_sort"] = pd.to_numeric(
         df["race_number"],
@@ -483,33 +405,46 @@ def main():
     df["_race_prize_numeric"] = pd.to_numeric(
         df["prize_money_hkd"],
         errors="coerce",
-    ).fillna(0)
+    ).fillna(0.0)
 
-    df["_is_historical"] = (
-        df["_race_date_sort"].notna()
-        &
-        (
-            df["_race_date_sort"]
-            <
-            PAYOUT_CUTOFF
-        )
+    # ========================================================
+    # HISTORICAL RACE MASK
+    #
+    # STRICTLY BEFORE 10 September 2023.
+    #
+    # 2023-09-09 -> corrected
+    # 2023-09-10 -> untouched
+    # ========================================================
+
+    df["_historical_race"] = (
+        df["_race_date_sort"]
+        <
+        PAYOUT_CUTOFF
     )
 
-    historical_mask = df[
-        "_is_historical"
-    ]
+    historical_mask = (
+        df["_historical_race"]
+    )
 
     historical_rows = int(
         historical_mask.sum()
     )
 
-    historical_races = df.loc[
-        historical_mask,
-        "race_id",
-    ].nunique(
-        dropna=False
+    historical_races = (
+        df.loc[
+            historical_mask,
+            "race_id",
+        ]
+        .nunique()
     )
 
+    later_rows = (
+        len(df)
+        -
+        historical_rows
+    )
+
+    print()
     print(
         f"Historical rows: {historical_rows:,}"
     )
@@ -518,9 +453,13 @@ def main():
         f"Historical races: {historical_races:,}"
     )
 
-    # --------------------------------------------------------
-    # Preserve ORIGINAL prize values for calculating deltas.
-    # --------------------------------------------------------
+    print(
+        f"Rows on/after cutoff: {later_rows:,}"
+    )
+
+    # ========================================================
+    # PRESERVE CURRENT VALUES FOR REPORTING
+    # ========================================================
 
     original_payout = pd.to_numeric(
         df["prize_payout_percentage"],
@@ -532,60 +471,51 @@ def main():
         errors="coerce",
     ).fillna(0.0)
 
-    # --------------------------------------------------------
-    # Calculate corrected historical percentages using
-    # the existing dead-heat allocation approach.
-    # --------------------------------------------------------
+    # ========================================================
+    # CALCULATE CORRECTED HISTORICAL PAYOUT PERCENTAGES
+    # ========================================================
 
     (
-        historical_percentages,
+        historical_payout,
         dead_heat_races,
+        dead_heat_groups,
     ) = calculate_historical_dead_heat_percentages(
         df
     )
 
-    # --------------------------------------------------------
-    # Corrected race prize starts as the existing value.
+    # ========================================================
+    # UPDATE HISTORICAL PAYOUT PERCENTAGE
     #
-    # Therefore races on/after 2023-09-10 remain untouched.
-    # --------------------------------------------------------
-
-    corrected_prize_won = (
-        original_prize_won.copy()
-    )
-
-    # --------------------------------------------------------
-    # Change ONLY historical prize_payout_percentage.
-    # --------------------------------------------------------
+    # ONLY historical rows are modified.
+    #
+    # Post-cutoff rows retain their existing values.
+    # ========================================================
 
     df.loc[
         historical_mask,
         "prize_payout_percentage",
     ] = (
-        historical_percentages.loc[
+        historical_payout.loc[
             historical_mask
         ]
-        .round(8)
+        .round(10)
+        .astype(str)
         .values
     )
 
-    # --------------------------------------------------------
-    # Calculate:
+    # ========================================================
+    # CALCULATE HISTORICAL PRIZE MONEY WON
     #
-    # race purse * corrected percentage
-    #
-    # ONLY for historical races.
-    # --------------------------------------------------------
+    # prize_money_hkd * payout percentage
+    # ========================================================
 
-    corrected_prize_won.loc[
-        historical_mask
-    ] = (
+    corrected_historical_prize = (
         df.loc[
             historical_mask,
             "_race_prize_numeric",
         ]
         *
-        historical_percentages.loc[
+        historical_payout.loc[
             historical_mask
         ]
     ).round(2)
@@ -594,141 +524,263 @@ def main():
         historical_mask,
         "prize_money_won_this_race",
     ] = (
-        corrected_prize_won.loc[
-            historical_mask
-        ].values
+        corrected_historical_prize
+        .astype(str)
+        .values
     )
 
-    # --------------------------------------------------------
-    # Adjust career prize totals.
+    # ========================================================
+    # IMPORTANT:
     #
-    # This carries the correction forward through continuous
-    # career-money history without crossing detected resets.
-    # --------------------------------------------------------
+    # Races on/after 2023-09-10 have NOT had:
+    #
+    # prize_payout_percentage
+    # prize_money_won_this_race
+    #
+    # changed.
+    # ========================================================
 
-    (
-        corrected_career_before,
-        corrected_career_after,
-        reset_count,
-    ) = adjust_career_prize_money(
-        df,
-        original_prize_won,
-        corrected_prize_won,
+    # ========================================================
+    # PREPARE PRIZE MONEY FOR CAREER CALCULATION
+    # ========================================================
+
+    df["_prize_won_numeric"] = pd.to_numeric(
+        df["prize_money_won_this_race"],
+        errors="coerce",
+    ).fillna(0.0)
+
+    # ========================================================
+    # SORT COMPLETE DATASET CHRONOLOGICALLY BY HORSE
+    #
+    # Dataset is assumed complete from 2006 through 2025.
+    # ========================================================
+
+    sort_columns = [
+        "horse_id",
+        "_race_date_sort",
+        "_race_number_sort",
+    ]
+
+    if "_race_index_sort" in df.columns:
+        sort_columns.append(
+            "_race_index_sort"
+        )
+
+    sort_columns.append(
+        "race_id"
     )
+
+    df = (
+        df.sort_values(
+            sort_columns,
+            kind="stable",
+        )
+        .reset_index(drop=True)
+    )
+
+    # ========================================================
+    # REBUILD COMPLETE CAREER PRIZE MONEY
+    # ========================================================
+
+    grouped = df.groupby(
+        "horse_id",
+        sort=False,
+        dropna=False,
+    )
+
+    df["_career_after_numeric"] = (
+        grouped[
+            "_prize_won_numeric"
+        ]
+        .cumsum()
+        .round(2)
+    )
+
+    df["_career_before_numeric"] = (
+        df["_career_after_numeric"]
+        -
+        df["_prize_won_numeric"]
+    ).round(2)
 
     df[
         "career_prize_money_before"
     ] = (
-        corrected_career_before
-        .round(2)
+        df[
+            "_career_before_numeric"
+        ]
+        .astype(str)
     )
 
     df[
         "career_prize_money_after"
     ] = (
-        corrected_career_after
-        .round(2)
+        df[
+            "_career_after_numeric"
+        ]
+        .astype(str)
     )
 
-    # --------------------------------------------------------
-    # Report changes.
-    # --------------------------------------------------------
+    # ========================================================
+    # CAREER PRIZE VALIDATION
+    #
+    # career_after - career_before must equal
+    # prize_money_won_this_race
+    # ========================================================
 
-    new_payout_numeric = pd.to_numeric(
+    career_difference = (
+        df["_career_after_numeric"]
+        -
+        df["_career_before_numeric"]
+        -
+        df["_prize_won_numeric"]
+    ).abs()
+
+    invalid_career_rows = (
+        career_difference
+        >
+        0.01
+    )
+
+    if invalid_career_rows.any():
+        print()
+        print(
+            "ERROR: Career prize validation failed.",
+            file=sys.stderr,
+        )
+
+        print(
+            "Invalid rows:",
+            int(invalid_career_rows.sum()),
+            file=sys.stderr,
+        )
+
+        return 1
+
+    # ========================================================
+    # RESTORE ORIGINAL ROW ORDER
+    # ========================================================
+
+    df = (
+        df.sort_values(
+            "_original_order",
+            kind="stable",
+        )
+        .reset_index(drop=True)
+    )
+
+    # ========================================================
+    # CHANGE SUMMARY
+    # ========================================================
+
+    new_payout = pd.to_numeric(
         df["prize_payout_percentage"],
         errors="coerce",
     ).fillna(0.0)
 
-    new_prize_numeric = pd.to_numeric(
+    new_prize_won = pd.to_numeric(
         df["prize_money_won_this_race"],
         errors="coerce",
     ).fillna(0.0)
 
     payout_changed = (
         (
-            new_payout_numeric
+            new_payout
             -
             original_payout
-        )
-        .abs()
+        ).abs()
         >
-        0.00000001
+        0.000000001
     )
 
     prize_changed = (
         (
-            new_prize_numeric
+            new_prize_won
             -
             original_prize_won
-        )
-        .abs()
+        ).abs()
         >
-        MONEY_TOLERANCE
+        0.01
     )
 
     print()
-    print("Correction summary")
-    print("------------------")
+    print("=" * 72)
+    print("CORRECTION SUMMARY")
+    print("=" * 72)
 
     print(
-        "Payout percentage rows changed: "
-        f"{int(payout_changed.sum()):,}"
+        "Payout percentage rows changed:",
+        f"{int(payout_changed.sum()):,}",
     )
 
     print(
-        "Prize-money rows changed:       "
-        f"{int(prize_changed.sum()):,}"
+        "Prize-money rows changed:",
+        f"{int(prize_changed.sum()):,}",
     )
 
     print(
-        "Dead-heat races encountered:    "
-        f"{len(dead_heat_races):,}"
+        "Dead-heat races found:",
+        f"{len(dead_heat_races):,}",
     )
 
     print(
-        "Career sequence resets found:   "
-        f"{reset_count:,}"
+        "Dead-heat placing groups:",
+        f"{dead_heat_groups:,}",
     )
 
-    # --------------------------------------------------------
-    # Drop temporary helper columns BEFORE validation/save.
-    # --------------------------------------------------------
+    # ========================================================
+    # DROP TEMPORARY COLUMNS
+    # ========================================================
 
     temporary_columns = [
+        "_original_order",
         "_race_date_sort",
         "_race_number_sort",
         "_race_index_sort",
         "_finish_numeric",
         "_race_prize_numeric",
-        "_is_historical",
+        "_historical_race",
+        "_prize_won_numeric",
+        "_career_after_numeric",
+        "_career_before_numeric",
     ]
 
     df.drop(
         columns=temporary_columns,
-        errors="ignore",
         inplace=True,
+        errors="ignore",
     )
 
-    # --------------------------------------------------------
-    # CRITICAL VALIDATION
-    #
-    # Every column other than the four explicitly permitted
-    # prize columns must be identical to the values loaded.
-    # --------------------------------------------------------
+    # ========================================================
+    # RESTORE EXACT ORIGINAL COLUMN ORDER
+    # ========================================================
 
-    non_target_hash_after = hash_columns(
-        df,
-        non_target_columns,
+    df = df[
+        original_columns
+    ]
+
+    # ========================================================
+    # VERIFY NO NON-PRIZE COLUMN CHANGED
+    # ========================================================
+
+    current_non_target = (
+        df[
+            non_target_columns
+        ]
+        .copy()
     )
 
-    if (
-        non_target_hash_before
-        !=
-        non_target_hash_after
+    if not current_non_target.equals(
+        original_non_target
     ):
+        print()
         print(
-            "ERROR: A non-prize column changed. "
-            "File will NOT be saved.",
+            "ERROR: A column outside the four permitted "
+            "prize columns changed.",
+            file=sys.stderr,
+        )
+
+        print(
+            "The cleaned CSV will NOT be overwritten.",
             file=sys.stderr,
         )
 
@@ -736,19 +788,19 @@ def main():
 
     print()
     print(
-        "Validation passed: no non-prize "
-        "column values changed."
+        "Validation passed:"
     )
 
-    # --------------------------------------------------------
-    # Atomic overwrite.
+    print(
+        "No non-prize column values changed."
+    )
+
+    # ========================================================
+    # WRITE TO TEMPORARY FILE FIRST
     #
-    # We first write a temporary CSV beside the real file.
-    # Only after the complete write succeeds do we replace
-    # all_results_cleaned.csv.
-    #
-    # This prevents a failed Action from leaving a partial CSV.
-    # --------------------------------------------------------
+    # The real all_results_cleaned.csv is only replaced after
+    # the complete write succeeds.
+    # ========================================================
 
     temp_fd, temp_name = tempfile.mkstemp(
         prefix="all_results_cleaned_",
@@ -771,47 +823,114 @@ def main():
             lineterminator="\n",
         )
 
+        # ====================================================
+        # RELOAD TEMP FILE FOR FINAL VALIDATION
+        # ====================================================
+
+        check_df = pd.read_csv(
+            temp_path,
+            dtype=str,
+            keep_default_na=False,
+            low_memory=False,
+        )
+
+        # ----------------------------------------------------
+        # Same columns
+        # ----------------------------------------------------
+
+        if list(check_df.columns) != original_columns:
+            raise RuntimeError(
+                "Column order changed during save."
+            )
+
+        # ----------------------------------------------------
+        # Same number of rows
+        # ----------------------------------------------------
+
+        if len(check_df) != len(df):
+            raise RuntimeError(
+                "Row count changed during save."
+            )
+
+        # ----------------------------------------------------
+        # Verify non-target values after actual CSV write
+        # ----------------------------------------------------
+
+        if not check_df[
+            non_target_columns
+        ].equals(
+            original_non_target
+        ):
+            raise RuntimeError(
+                "A non-prize column changed during CSV write."
+            )
+
+        # ====================================================
+        # ATOMIC REPLACEMENT
+        #
+        # This is the ONLY point where the existing
+        # all_results_cleaned.csv is replaced.
+        # ====================================================
+
         os.replace(
             temp_path,
             RESULTS_FILE,
         )
 
-    except Exception:
+    except Exception as exc:
         if temp_path.exists():
             temp_path.unlink()
 
-        raise
+        print()
+        print(
+            f"ERROR saving file: {exc}",
+            file=sys.stderr,
+        )
 
-    output_size_mb = (
+        return 1
+
+    # ========================================================
+    # FINISHED
+    # ========================================================
+
+    file_size_mb = (
         RESULTS_FILE.stat().st_size
         /
         (1024 * 1024)
     )
 
     print()
-    print("=" * 70)
+    print("=" * 72)
     print("COMPLETE")
-    print("=" * 70)
+    print("=" * 72)
 
+    print()
     print(
-        f"Saved in place: {RESULTS_FILE}"
+        f"Updated file: {RESULTS_FILE}"
     )
 
     print(
-        f"File size: {output_size_mb:.2f} MB"
+        f"File size: {file_size_mb:.2f} MB"
     )
 
     print()
     print(
-        "Only these columns were permitted to change:"
+        "Only these columns were allowed to change:"
     )
 
-    for column in sorted(
-        TARGET_COLUMNS
-    ):
+    for column in TARGET_COLUMNS:
         print(
             f"  - {column}"
         )
+
+    print()
+    print(
+        "No new CSV was created."
+    )
+
+    print(
+        "all_results_cleaned.csv was updated in place."
+    )
 
     print()
 
