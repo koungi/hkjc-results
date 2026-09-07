@@ -1,67 +1,178 @@
-name: Clean race results
+name: Correct historical prize money
 
 on:
   workflow_dispatch:
 
   push:
     paths:
-      - "results/races/all_results.csv"
       - "scripts/clean.py"
 
 permissions:
   contents: write
 
+concurrency:
+  group: correct-historical-prize-money
+  cancel-in-progress: false
+
 jobs:
-  clean-results:
+  correct-prize-money:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository with Git LFS
+      # ======================================================
+      # CHECKOUT INCLUDING GIT LFS CONTENT
+      # ======================================================
+
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
           fetch-depth: 0
+
+      # ======================================================
+      # MAKE SURE LFS OBJECT IS ACTUALLY DOWNLOADED
+      # ======================================================
 
       - name: Pull Git LFS files
         run: |
           git lfs install
           git lfs pull
 
+      # ======================================================
+      # VERIFY INPUT FILE
+      # ======================================================
+
+      - name: Verify cleaned results file
+        run: |
+          test -f results/races/all_results_cleaned.csv
+          test -f scripts/clean.py
+
+          echo "Input file:"
+          ls -lh results/races/all_results_cleaned.csv
+
+          echo
+          echo "Python script:"
+          ls -lh scripts/clean.py
+
+      # ======================================================
+      # VERIFY THE LARGE CSV IS LFS TRACKED
+      # ======================================================
+
+      - name: Verify Git LFS tracking
+        shell: bash
+        run: |
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_cleaned.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR:"
+            echo "results/races/all_results_cleaned.csv is not tracked by Git LFS."
+            exit 1
+          fi
+
+          echo "Git LFS tracking confirmed."
+
+          git lfs ls-files
+
+      # ======================================================
+      # PYTHON
+      # ======================================================
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Clean dam_sire column
+      # ======================================================
+      # INSTALL ONLY WHAT THIS SCRIPT NEEDS
+      # ======================================================
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pandas>=2.2,<3"
+
+      # ======================================================
+      # RUN PRIZE CORRECTION
+      #
+      # This opens:
+      #
+      # results/races/all_results_cleaned.csv
+      #
+      # and overwrites the SAME file after validation.
+      # ======================================================
+
+      - name: Correct historical prize money
         run: |
           python scripts/clean.py
 
-      - name: Track cleaned CSV with Git LFS
-        run: |
-          git lfs track "results/races/all_results_cleaned.csv"
+      # ======================================================
+      # ORIGINAL all_results.csv MUST NOT CHANGE
+      # ======================================================
 
-      - name: Verify cleaned file exists
+      - name: Confirm original results file was not modified
+        shell: bash
         run: |
-          test -f results/races/all_results_cleaned.csv
-          ls -lh results/races/all_results.csv
+          if ! git diff --quiet -- results/races/all_results.csv; then
+            echo "ERROR:"
+            echo "results/races/all_results.csv was modified."
+            exit 1
+          fi
+
+          echo "Confirmed:"
+          echo "results/races/all_results.csv was not modified."
+
+      # ======================================================
+      # MAKE SURE NO OTHER TRACKED FILE WAS MODIFIED
+      # ======================================================
+
+      - name: Verify only cleaned CSV changed
+        shell: bash
+        run: |
+          UNEXPECTED_FILES="$(
+            git diff --name-only |
+            grep -v '^results/races/all_results_cleaned\.csv$' ||
+            true
+          )"
+
+          if [ -n "$UNEXPECTED_FILES" ]; then
+            echo "ERROR:"
+            echo "Unexpected files were modified:"
+            echo "$UNEXPECTED_FILES"
+            exit 1
+          fi
+
+          echo "Only the expected cleaned CSV was modified."
+
+      # ======================================================
+      # DISPLAY STATUS
+      # ======================================================
+
+      - name: Show result
+        run: |
+          echo "Updated file:"
           ls -lh results/races/all_results_cleaned.csv
 
-      - name: Verify cleaned file is tracked by Git LFS
-        run: |
-          git check-attr filter -- results/races/all_results_cleaned.csv
-          git lfs ls-files
+          echo
+          echo "Git status:"
+          git status --short
 
-      - name: Commit cleaned CSV
+      # ======================================================
+      # COMMIT UPDATED LFS FILE
+      # ======================================================
+
+      - name: Commit corrected results
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add .gitattributes
           git add results/races/all_results_cleaned.csv
 
           if git diff --cached --quiet; then
-            echo "No changes detected. Nothing to commit."
-          else
-            git commit -m "Clean dam_sire values in race results"
-            git push
+            echo "No prize-money changes detected."
+            echo "Nothing to commit."
+            exit 0
           fi
+
+          git commit -m "Correct historical HKJC prize money"
+          git push
