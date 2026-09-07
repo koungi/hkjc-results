@@ -26,7 +26,10 @@ jobs:
 
     steps:
       # ======================================================
-      # CHECKOUT REPOSITORY INCLUDING GIT LFS
+      # CHECKOUT REPOSITORY
+      #
+      # LFS is still required here because the SOURCE file
+      # all_results_cleaned.csv is stored using Git LFS.
       # ======================================================
 
       - name: Checkout repository
@@ -36,16 +39,16 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # DOWNLOAD ACTUAL LFS FILE CONTENT
+      # DOWNLOAD SOURCE LFS FILE
       # ======================================================
 
-      - name: Pull Git LFS files
+      - name: Pull Git LFS source files
         run: |
           git lfs install
           git lfs pull
 
       # ======================================================
-      # VERIFY SOURCE FILE EXISTS
+      # VERIFY FILES
       # ======================================================
 
       - name: Verify source file
@@ -70,7 +73,7 @@ jobs:
           python-version: "3.12"
 
       # ======================================================
-      # INSTALL PANDAS
+      # INSTALL DEPENDENCIES
       # ======================================================
 
       - name: Install dependencies
@@ -79,7 +82,7 @@ jobs:
           python -m pip install "pandas>=2.2,<3"
 
       # ======================================================
-      # DISPLAY SELECTED RANGE
+      # SHOW SELECTED RANGE
       # ======================================================
 
       - name: Show selected date range
@@ -88,10 +91,7 @@ jobs:
           echo "END_DATE=${{ inputs.end_date }}"
 
       # ======================================================
-      # RUN EXTRACTION
-      #
-      # Dates entered in the GitHub workflow UI are passed
-      # into Python as environment variables.
+      # EXTRACT DATE RANGE
       # ======================================================
 
       - name: Extract selected date range
@@ -118,7 +118,7 @@ jobs:
           echo "all_results_cleaned.csv was not modified."
 
       # ======================================================
-      # VERIFY OUTPUT FILE EXISTS
+      # VERIFY OUTPUT EXISTS
       # ======================================================
 
       - name: Verify output file
@@ -129,14 +129,22 @@ jobs:
           ls -lh results/races/all_results_date_range.csv
 
       # ======================================================
-      # TRACK OUTPUT WITH GIT LFS
-      #
-      # Useful if the extracted CSV is larger than 100 MB.
+      # MAKE SURE OUTPUT IS NOT LFS TRACKED
       # ======================================================
 
-      - name: Track output with Git LFS
+      - name: Verify output is not Git LFS
+        shell: bash
         run: |
-          git lfs track "results/races/all_results_date_range.csv"
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_date_range.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" = "lfs" ]; then
+            echo "ERROR:"
+            echo "all_results_date_range.csv is currently covered by a Git LFS rule."
+            exit 1
+          fi
+
+          echo "Confirmed:"
+          echo "all_results_date_range.csv will be stored as a normal Git file."
 
       # ======================================================
       # SHOW STATUS
@@ -145,10 +153,10 @@ jobs:
       - name: Show Git status
         run: |
           git status --short
-          git check-attr filter -- results/races/all_results_date_range.csv
+          ls -lh results/races/all_results_date_range.csv
 
       # ======================================================
-      # COMMIT OUTPUT
+      # COMMIT OUTPUT AS NORMAL GIT FILE
       # ======================================================
 
       - name: Commit extracted dataset
@@ -157,7 +165,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add .gitattributes
           git add results/races/all_results_date_range.csv
 
           if git diff --cached --quiet; then
