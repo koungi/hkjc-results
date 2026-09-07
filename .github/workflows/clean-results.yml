@@ -1,4 +1,4 @@
-name: Correct historical prize money
+name: Clean historical race results
 
 on:
   workflow_dispatch:
@@ -11,16 +11,16 @@ permissions:
   contents: write
 
 concurrency:
-  group: correct-historical-prize-money
+  group: clean-historical-race-results
   cancel-in-progress: false
 
 jobs:
-  correct-prize-money:
+  clean-results:
     runs-on: ubuntu-latest
 
     steps:
       # ======================================================
-      # CHECKOUT INCLUDING GIT LFS CONTENT
+      # CHECKOUT REPOSITORY INCLUDING GIT LFS FILES
       # ======================================================
 
       - name: Checkout repository
@@ -30,38 +30,49 @@ jobs:
           fetch-depth: 0
 
       # ======================================================
-      # MAKE SURE LFS OBJECT IS ACTUALLY DOWNLOADED
+      # ENSURE LFS OBJECTS ARE DOWNLOADED
       # ======================================================
 
       - name: Pull Git LFS files
+        shell: bash
         run: |
+          set -euo pipefail
+
           git lfs install
           git lfs pull
 
       # ======================================================
-      # VERIFY INPUT FILE
+      # VERIFY REQUIRED FILES EXIST
       # ======================================================
 
-      - name: Verify cleaned results file
+      - name: Verify input files
+        shell: bash
         run: |
+          set -euo pipefail
+
           test -f results/races/all_results_cleaned.csv
           test -f scripts/clean.py
 
-          echo "Input file:"
+          echo "Cleaned results file:"
           ls -lh results/races/all_results_cleaned.csv
 
           echo
-          echo "Python script:"
+          echo "Cleaning script:"
           ls -lh scripts/clean.py
 
       # ======================================================
-      # VERIFY THE LARGE CSV IS LFS TRACKED
+      # VERIFY CLEANED CSV IS TRACKED BY GIT LFS
       # ======================================================
 
       - name: Verify Git LFS tracking
         shell: bash
         run: |
-          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_cleaned.csv | awk '{print $3}')"
+          set -euo pipefail
+
+          ATTRIBUTE="$(
+            git check-attr filter -- results/races/all_results_cleaned.csv |
+            awk '{print $3}'
+          )"
 
           if [ "$ATTRIBUTE" != "lfs" ]; then
             echo "ERROR:"
@@ -70,11 +81,30 @@ jobs:
           fi
 
           echo "Git LFS tracking confirmed."
-
+          echo
           git lfs ls-files
 
       # ======================================================
-      # PYTHON
+      # VERIFY WE HAVE THE REAL CSV, NOT AN LFS POINTER
+      # ======================================================
+
+      - name: Verify LFS file was downloaded
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if head -n 1 results/races/all_results_cleaned.csv |
+             grep -q '^version https://git-lfs.github.com/spec/v1'; then
+
+            echo "ERROR:"
+            echo "all_results_cleaned.csv is still an LFS pointer."
+            exit 1
+          fi
+
+          echo "Confirmed real CSV content is present."
+
+      # ======================================================
+      # SET UP PYTHON
       # ======================================================
 
       - name: Set up Python
@@ -83,35 +113,57 @@ jobs:
           python-version: "3.12"
 
       # ======================================================
-      # INSTALL ONLY WHAT THIS SCRIPT NEEDS
+      # INSTALL DEPENDENCIES
       # ======================================================
 
       - name: Install dependencies
+        shell: bash
         run: |
+          set -euo pipefail
+
           python -m pip install --upgrade pip
-          python -m pip install "pandas>=2.2,<3"
+          python -m pip install "pandas>=2.2,<3" "numpy>=1.26,<3"
 
       # ======================================================
-      # RUN PRIZE CORRECTION
+      # RUN CLEANING SCRIPT
       #
-      # This opens:
-      #
-      # results/races/all_results_cleaned.csv
-      #
-      # and overwrites the SAME file after validation.
+      # Expected:
+      # - reads results/races/all_results_cleaned.csv
+      # - updates the same file
+      # - adds result_status
+      # - applies prize-money corrections
       # ======================================================
 
-      - name: Correct historical prize money
+      - name: Clean historical race results
+        shell: bash
         run: |
+          set -euo pipefail
+
           python scripts/clean.py
 
       # ======================================================
-      # ORIGINAL all_results.csv MUST NOT CHANGE
+      # VERIFY OUTPUT FILE STILL EXISTS
+      # ======================================================
+
+      - name: Verify cleaned output
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f results/races/all_results_cleaned.csv
+
+          echo "Updated cleaned CSV:"
+          ls -lh results/races/all_results_cleaned.csv
+
+      # ======================================================
+      # VERIFY ORIGINAL RAW RESULTS WERE NOT MODIFIED
       # ======================================================
 
       - name: Confirm original results file was not modified
         shell: bash
         run: |
+          set -euo pipefail
+
           if ! git diff --quiet -- results/races/all_results.csv; then
             echo "ERROR:"
             echo "results/races/all_results.csv was modified."
@@ -122,21 +174,31 @@ jobs:
           echo "results/races/all_results.csv was not modified."
 
       # ======================================================
-      # MAKE SURE NO OTHER TRACKED FILE WAS MODIFIED
+      # VERIFY NO UNEXPECTED TRACKED OR UNTRACKED FILES CHANGED
       # ======================================================
 
       - name: Verify only cleaned CSV changed
         shell: bash
         run: |
+          set -euo pipefail
+
+          CHANGED_FILES="$(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } |
+            sort -u
+          )"
+
           UNEXPECTED_FILES="$(
-            git diff --name-only |
+            printf '%s\n' "$CHANGED_FILES" |
             grep -v '^results/races/all_results_cleaned\.csv$' ||
             true
           )"
 
           if [ -n "$UNEXPECTED_FILES" ]; then
             echo "ERROR:"
-            echo "Unexpected files were modified:"
+            echo "Unexpected files were modified or created:"
             echo "$UNEXPECTED_FILES"
             exit 1
           fi
@@ -144,35 +206,75 @@ jobs:
           echo "Only the expected cleaned CSV was modified."
 
       # ======================================================
-      # DISPLAY STATUS
+      # SHOW RESULT STATUS
       # ======================================================
 
-      - name: Show result
+      - name: Show repository status
+        shell: bash
         run: |
-          echo "Updated file:"
-          ls -lh results/races/all_results_cleaned.csv
+          set -euo pipefail
 
-          echo
           echo "Git status:"
           git status --short
 
+          echo
+          echo "Updated file:"
+          ls -lh results/races/all_results_cleaned.csv
+
       # ======================================================
-      # COMMIT UPDATED LFS FILE
+      # STAGE UPDATED LFS FILE
       # ======================================================
 
-      - name: Commit corrected results
+      - name: Stage cleaned results
         shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
 
           git add results/races/all_results_cleaned.csv
 
+          echo "Staged files:"
+          git diff --cached --name-only
+
+      # ======================================================
+      # VERIFY STAGED FILE IS STILL LFS-MANAGED
+      # ======================================================
+
+      - name: Verify staged LFS file
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ATTRIBUTE="$(
+            git check-attr filter -- results/races/all_results_cleaned.csv |
+            awk '{print $3}'
+          )"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR:"
+            echo "Updated CSV is no longer tracked by Git LFS."
+            exit 1
+          fi
+
+          echo "Updated CSV remains tracked by Git LFS."
+
+      # ======================================================
+      # COMMIT AND PUSH
+      # ======================================================
+
+      - name: Commit cleaned results
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           if git diff --cached --quiet; then
-            echo "No prize-money changes detected."
+            echo "No changes detected."
             echo "Nothing to commit."
             exit 0
           fi
 
-          git commit -m "Correct historical HKJC prize money"
+          git commit -m "Update cleaned historical HKJC results"
+
           git push
