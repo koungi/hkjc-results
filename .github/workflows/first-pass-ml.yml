@@ -8,6 +8,7 @@ on:
       - "scripts/first_pass_ML.py"
       - "results/races/all_results_date_range.csv"
       - ".github/workflows/first-pass-ml.yml"
+      - ".gitattributes"
 
 permissions:
   contents: write
@@ -67,6 +68,36 @@ jobs:
           python -m pip install "pandas>=2.2,<3"
 
       # ======================================================
+      # FORCE OUTPUT FILE TO NORMAL GIT
+      #
+      # This adds an exception to .gitattributes so that:
+      #
+      # results/races/all_results_with_races_removed.csv
+      #
+      # is NOT stored with Git LFS.
+      # ======================================================
+
+      - name: Configure output as normal Git file
+        shell: bash
+        run: |
+          OUTPUT_RULE='results/races/all_results_with_races_removed.csv -filter -diff -merge text'
+
+          touch .gitattributes
+
+          if ! grep -Fxq "$OUTPUT_RULE" .gitattributes; then
+            echo >> .gitattributes
+            echo "# First-pass ML generated output - normal Git file" >> .gitattributes
+            echo "$OUTPUT_RULE" >> .gitattributes
+          fi
+
+          echo "Current .gitattributes:"
+          cat .gitattributes
+
+          echo
+          echo "Git attributes for output file:"
+          git check-attr filter diff merge text -- results/races/all_results_with_races_removed.csv
+
+      # ======================================================
       # RUN FIRST-PASS ML CLEANING
       #
       # Reads:
@@ -98,7 +129,24 @@ jobs:
           wc -l results/races/all_results_with_races_removed.csv
 
       # ======================================================
-      # MAKE SURE OUTPUT IS NOT USING GIT LFS
+      # REMOVE ANY OLD LFS-TRACKED INDEX ENTRY
+      #
+      # Safe even if the file was previously deleted.
+      # ======================================================
+
+      - name: Reset output Git tracking
+        shell: bash
+        run: |
+          git rm --cached --ignore-unmatch results/races/all_results_with_races_removed.csv || true
+
+          echo
+          echo "Re-adding output as normal Git file."
+
+          git add .gitattributes
+          git add results/races/all_results_with_races_removed.csv
+
+      # ======================================================
+      # VERIFY OUTPUT IS NOT GIT LFS
       # ======================================================
 
       - name: Verify output is normal Git
@@ -106,17 +154,38 @@ jobs:
         run: |
           ATTRIBUTE="$(git check-attr filter -- results/races/all_results_with_races_removed.csv | awk '{print $3}')"
 
+          echo "Filter attribute: $ATTRIBUTE"
+
           if [ "$ATTRIBUTE" = "lfs" ]; then
+            echo
             echo "ERROR:"
             echo "results/races/all_results_with_races_removed.csv"
-            echo "is currently configured for Git LFS."
+            echo "is still configured for Git LFS."
             echo
-            echo "Remove its Git LFS rule from .gitattributes."
+            echo ".gitattributes contents:"
+            cat .gitattributes
+            exit 1
+          fi
+
+          echo
+          echo "Confirmed:"
+          echo "Output CSV is configured as a normal Git file."
+
+      # ======================================================
+      # VERIFY FILE IS NOT AN LFS POINTER
+      # ======================================================
+
+      - name: Verify output is not an LFS pointer
+        shell: bash
+        run: |
+          if head -n 1 results/races/all_results_with_races_removed.csv | grep -q "version https://git-lfs.github.com/spec/v1"; then
+            echo "ERROR:"
+            echo "Output file is an LFS pointer instead of the real CSV."
             exit 1
           fi
 
           echo "Confirmed:"
-          echo "Output CSV will be stored as a normal Git file."
+          echo "Output contains the actual CSV data."
 
       # ======================================================
       # SHOW GIT STATUS
@@ -132,6 +201,10 @@ jobs:
           echo "Output size:"
           ls -lh results/races/all_results_with_races_removed.csv
 
+          echo
+          echo "Staged files:"
+          git diff --cached --name-status
+
       # ======================================================
       # COMMIT GENERATED CSV AS NORMAL GIT FILE
       # ======================================================
@@ -141,8 +214,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add results/races/all_results_with_races_removed.csv
 
           if git diff --cached --quiet; then
             echo "No changes detected."
@@ -162,7 +233,10 @@ jobs:
         run: |
           echo "SUCCESS"
           echo
+          echo "Input:"
+          echo "results/races/all_results_date_range.csv"
+          echo
           echo "Generated:"
           echo "results/races/all_results_with_races_removed.csv"
           echo
-          echo "The file is stored using normal Git, not Git LFS."
+          echo "The generated file is stored using normal Git, not Git LFS."
