@@ -55,30 +55,50 @@ jobs:
       - name: Build ML ready dataset
         run: |
           python scripts/build_hkjc_ml_features.py \
-            --input results/races/all_results_with_races_removed.csv \
-            --history-input results/races/all_results.csv \
+            --history results/races/all_results.csv \
+            --rows results/races/all_results_with_races_removed.csv \
             --output results/races/all_results_ML_ready.csv
 
-      - name: Show output details
+      - name: Validate output
         run: |
-          echo "Generated files:"
-          ls -lh results/races/all_results_ML_ready.csv*
-          
-          echo
-          echo "CSV header column count:"
+          test -f results/races/all_results_ML_ready.csv || {
+            echo "ERROR: ML-ready CSV was not created."
+            exit 1
+          }
+
           python - <<'PY'
           import pandas as pd
 
           path = "results/races/all_results_ML_ready.csv"
-          df = pd.read_csv(path, nrows=5)
 
-          print(f"Columns: {len(df.columns)}")
-          print("First 20 columns:")
-          for col in df.columns[:20]:
-              print(f" - {col}")
+          df = pd.read_csv(path, low_memory=False)
+
+          print(f"Rows: {len(df):,}")
+          print(f"Columns: {len(df.columns):,}")
+
+          if "is_winner" not in df.columns:
+              raise SystemExit("ERROR: is_winner target is missing")
+
+          if "race_id" not in df.columns:
+              raise SystemExit("ERROR: race_id is missing")
+
+          if df["result_id"].duplicated().any():
+              raise SystemExit("ERROR: duplicate result_id values detected")
+
+          print()
+          print("Target distribution:")
+          print(df["is_winner"].value_counts(dropna=False))
+
+          print()
+          print("Validation passed.")
           PY
 
-      - name: Ensure ML output is not tracked by Git LFS
+      - name: Show generated files
+        run: |
+          echo "Generated ML files:"
+          ls -lh results/races/all_results_ML_ready.csv*
+
+      - name: Ensure output is not Git LFS
         run: |
           ATTRIBUTE="$(git check-attr filter -- results/races/all_results_ML_ready.csv | awk '{print $3}')"
 
@@ -92,7 +112,7 @@ jobs:
           fi
 
           echo "Confirmed:"
-          echo "ML ready CSV will be stored as a normal Git file."
+          echo "ML-ready CSV will be stored as a normal Git file."
 
       - name: Commit generated ML dataset
         run: |
