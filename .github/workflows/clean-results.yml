@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - "scripts/clean.py"
+      - ".github/workflows/clean-historical-race-results.yml"
 
 permissions:
   contents: write
@@ -24,13 +25,13 @@ jobs:
       # ======================================================
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           lfs: true
           fetch-depth: 0
 
       # ======================================================
-      # ENSURE GIT LFS FILES ARE DOWNLOADED
+      # ENSURE GIT LFS CONTENT IS DOWNLOADED
       # ======================================================
 
       - name: Pull Git LFS files
@@ -86,7 +87,7 @@ jobs:
           git lfs ls-files
 
       # ======================================================
-      # VERIFY REAL CSV CONTENT WAS DOWNLOADED
+      # VERIFY THE REAL CSV WAS DOWNLOADED
       # ======================================================
 
       - name: Verify LFS content
@@ -109,7 +110,7 @@ jobs:
       # ======================================================
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -128,11 +129,9 @@ jobs:
       # ======================================================
       # RUN CLEANING SCRIPT
       #
-      # clean.py should read:
+      # clean.py must read and overwrite:
       #
       # results/races/all_results_cleaned.csv
-      #
-      # and write back to the SAME file.
       # ======================================================
 
       - name: Clean historical race results
@@ -143,7 +142,7 @@ jobs:
           python scripts/clean.py
 
       # ======================================================
-      # VERIFY OUTPUT EXISTS
+      # VERIFY OUTPUT STILL EXISTS AND IS A REAL CSV
       # ======================================================
 
       - name: Verify cleaned output
@@ -153,11 +152,19 @@ jobs:
 
           test -f results/races/all_results_cleaned.csv
 
+          if head -n 1 results/races/all_results_cleaned.csv |
+             grep -q '^version https://git-lfs.github.com/spec/v1'; then
+
+            echo "ERROR:"
+            echo "The output file is an LFS pointer instead of CSV content."
+            exit 1
+          fi
+
           echo "Updated cleaned CSV:"
           ls -lh results/races/all_results_cleaned.csv
 
       # ======================================================
-      # MAKE SURE ORIGINAL RAW FILE WAS NOT MODIFIED
+      # VERIFY ORIGINAL RAW RESULTS WERE NOT MODIFIED
       # ======================================================
 
       - name: Confirm original results file was not modified
@@ -175,7 +182,7 @@ jobs:
           echo "results/races/all_results.csv was not modified."
 
       # ======================================================
-      # MAKE SURE ONLY CLEANED CSV CHANGED
+      # VERIFY ONLY THE CLEANED CSV CHANGED
       # ======================================================
 
       - name: Verify only cleaned CSV changed
@@ -207,7 +214,7 @@ jobs:
           echo "Only the expected cleaned CSV was modified."
 
       # ======================================================
-      # SHOW STATUS
+      # DISPLAY RESULT
       # ======================================================
 
       - name: Show result
@@ -223,7 +230,7 @@ jobs:
           git status --short
 
       # ======================================================
-      # STAGE UPDATED LFS CSV
+      # STAGE UPDATED LFS FILE
       # ======================================================
 
       - name: Stage cleaned results
@@ -237,7 +244,7 @@ jobs:
           git diff --cached --name-only
 
       # ======================================================
-      # VERIFY STAGED FILE IS STILL LFS MANAGED
+      # VERIFY STAGED FILE REMAINS LFS TRACKED
       # ======================================================
 
       - name: Verify staged LFS file
@@ -259,7 +266,7 @@ jobs:
           echo "Updated CSV remains tracked by Git LFS."
 
       # ======================================================
-      # COMMIT AND PUSH
+      # COMMIT AND PUSH UPDATED CLEANED CSV
       # ======================================================
 
       - name: Commit cleaned results
@@ -277,5 +284,4 @@ jobs:
           fi
 
           git commit -m "Update cleaned historical HKJC results"
-
           git push
