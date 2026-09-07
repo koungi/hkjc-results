@@ -1,0 +1,224 @@
+name: First pass ML race cleaning
+
+on:
+  workflow_dispatch:
+
+  push:
+    paths:
+      - "scripts/first_pass_ML.py"
+      - "results/races/all_results_date_range.csv"
+      - ".github/workflows/first-pass-ml.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: first-pass-ml-race-cleaning
+  cancel-in-progress: false
+
+jobs:
+  clean-races:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ======================================================
+      # CHECKOUT REPOSITORY INCLUDING GIT LFS FILES
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      # ======================================================
+      # DOWNLOAD GIT LFS CONTENT
+      # ======================================================
+
+      - name: Pull Git LFS files
+        shell: bash
+        run: |
+          git lfs install
+          git lfs pull
+
+      # ======================================================
+      # VERIFY SOURCE CSV AND PYTHON SCRIPT EXIST
+      # ======================================================
+
+      - name: Verify input files
+        shell: bash
+        run: |
+          test -f results/races/all_results_date_range.csv
+          test -f scripts/first_pass_ML.py
+
+          echo "Source CSV:"
+          ls -lh results/races/all_results_date_range.csv
+
+          echo
+          echo "Python script:"
+          ls -lh scripts/first_pass_ML.py
+
+      # ======================================================
+      # VERIFY SOURCE CSV IS TRACKED BY GIT LFS
+      # ======================================================
+
+      - name: Verify source Git LFS tracking
+        shell: bash
+        run: |
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_date_range.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR:"
+            echo "results/races/all_results_date_range.csv is not tracked by Git LFS."
+            exit 1
+          fi
+
+          echo "Source Git LFS tracking confirmed."
+
+      # ======================================================
+      # SET UP PYTHON
+      # ======================================================
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # ======================================================
+      # INSTALL DEPENDENCIES
+      # ======================================================
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pandas>=2.2,<3"
+
+      # ======================================================
+      # RUN FIRST-PASS ML CLEANING
+      #
+      # scripts/first_pass_ML.py reads:
+      #
+      # results/races/all_results_date_range.csv
+      #
+      # and creates:
+      #
+      # results/races/all_results_with_races_removed.csv
+      # ======================================================
+
+      - name: Run first pass ML cleaning
+        shell: bash
+        run: |
+          python scripts/first_pass_ML.py
+
+      # ======================================================
+      # VERIFY OUTPUT FILE EXISTS
+      # ======================================================
+
+      - name: Verify output file
+        shell: bash
+        run: |
+          test -f results/races/all_results_with_races_removed.csv
+
+          echo "Generated CSV:"
+          ls -lh results/races/all_results_with_races_removed.csv
+
+      # ======================================================
+      # ENSURE OUTPUT CSV IS TRACKED BY GIT LFS
+      #
+      # If it is already covered by an existing LFS pattern,
+      # nothing needs to change.
+      #
+      # Otherwise explicitly add this file to Git LFS.
+      # ======================================================
+
+      - name: Ensure output uses Git LFS
+        shell: bash
+        run: |
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_with_races_removed.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "Output is not currently tracked by Git LFS."
+            echo "Adding Git LFS tracking rule..."
+
+            git lfs track "results/races/all_results_with_races_removed.csv"
+          else
+            echo "Output is already tracked by Git LFS."
+          fi
+
+          ATTRIBUTE="$(git check-attr filter -- results/races/all_results_with_races_removed.csv | awk '{print $3}')"
+
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR:"
+            echo "Failed to configure output file for Git LFS."
+            exit 1
+          fi
+
+          echo "Output Git LFS tracking confirmed."
+
+      # ======================================================
+      # SHOW FINAL DATASET INFORMATION
+      # ======================================================
+
+      - name: Show output information
+        shell: bash
+        run: |
+          echo "Output CSV:"
+          ls -lh results/races/all_results_with_races_removed.csv
+
+          echo
+          echo "Line count:"
+          wc -l results/races/all_results_with_races_removed.csv
+
+          echo
+          echo "Git LFS attribute:"
+          git check-attr filter -- results/races/all_results_with_races_removed.csv
+
+          echo
+          echo "Git status:"
+          git status --short
+
+      # ======================================================
+      # COMMIT CLEANED ML DATASET
+      # ======================================================
+
+      - name: Commit cleaned race dataset
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Add .gitattributes in case the workflow added a new
+          # Git LFS tracking rule.
+          git add .gitattributes
+          git add results/races/all_results_with_races_removed.csv
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            echo "Nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "Generate first-pass ML race dataset"
+          git push
+
+      # ======================================================
+      # VERIFY OUTPUT IS NOW REGISTERED WITH GIT LFS
+      # ======================================================
+
+      - name: Verify committed Git LFS file
+        shell: bash
+        run: |
+          echo "Git LFS files:"
+          git lfs ls-files
+
+          if ! git lfs ls-files | grep -Fq "results/races/all_results_with_races_removed.csv"; then
+            echo "ERROR:"
+            echo "Output CSV was not registered as a Git LFS file."
+            exit 1
+          fi
+
+          echo
+          echo "SUCCESS:"
+          echo "results/races/all_results_with_races_removed.csv"
+          echo "is committed and tracked with Git LFS."
