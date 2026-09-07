@@ -3,13 +3,6 @@ name: Build ML Ready Racing Dataset
 on:
   workflow_dispatch:
 
-  push:
-    paths:
-      - "scripts/build_hkjc_ml_features.py"
-      - "results/races/all_results.csv"
-      - "results/races/all_results_with_races_removed.csv"
-      - ".github/workflows/build-ml-ready.yml"
-
 permissions:
   contents: write
 
@@ -18,39 +11,105 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository with Git LFS
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          lfs: true
+
+      - name: Pull Git LFS files
+        run: |
+          git lfs install
+          git lfs pull
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pandas numpy
 
-      - name: Check required files exist
+      - name: Verify input files
         run: |
-          test -f scripts/build_hkjc_ml_features.py || {
-            echo "ERROR: scripts/build_hkjc_ml_features.py not found"
-            exit 1
-          }
+          echo "Checking source files..."
 
           test -f results/races/all_results.csv || {
-            echo "ERROR: results/races/all_results.csv not found"
+            echo "ERROR: all_results.csv not found"
             exit 1
           }
 
           test -f results/races/all_results_with_races_removed.csv || {
-            echo "ERROR: results/races/all_results_with_races_removed.csv not found"
+            echo "ERROR: all_results_with_races_removed.csv not found"
             exit 1
           }
 
-          echo "All required files found."
+          echo
+          echo "all_results.csv:"
+          ls -lh results/races/all_results.csv
+
+          echo
+          echo "all_results_with_races_removed.csv:"
+          ls -lh results/races/all_results_with_races_removed.csv
+
+          echo
+          echo "Confirming all_results.csv is real LFS content..."
+
+          if head -n 1 results/races/all_results.csv | grep -q "git-lfs"; then
+            echo "ERROR: all_results.csv is still an LFS pointer."
+            exit 1
+          fi
+
+          echo "LFS history file loaded correctly."
+
+      - name: Validate input datasets
+        run: |
+          python - <<'PY'
+          import pandas as pd
+
+          history_path = "results/races/all_results.csv"
+          rows_path = "results/races/all_results_with_races_removed.csv"
+
+          history = pd.read_csv(history_path, low_memory=False)
+          rows = pd.read_csv(rows_path, low_memory=False)
+
+          print("HISTORY")
+          print(f"Rows: {len(history):,}")
+          print(f"Columns: {len(history.columns):,}")
+
+          print()
+          print("ROWS TO EMIT")
+          print(f"Rows: {len(rows):,}")
+          print(f"Columns: {len(rows.columns):,}")
+
+          required = {
+              "result_id",
+              "race_id",
+              "race_date",
+              "horse_id",
+              "is_winner",
+          }
+
+          missing_history = required - set(history.columns)
+          missing_rows = required - set(rows.columns)
+
+          if missing_history:
+              raise SystemExit(
+                  "ERROR: all_results.csv missing: "
+                  + ", ".join(sorted(missing_history))
+              )
+
+          if missing_rows:
+              raise SystemExit(
+                  "ERROR: all_results_with_races_removed.csv missing: "
+                  + ", ".join(sorted(missing_rows))
+              )
+
+          print()
+          print("Input validation passed.")
+          PY
 
       - name: Build ML ready dataset
         run: |
@@ -59,13 +118,8 @@ jobs:
             --rows results/races/all_results_with_races_removed.csv \
             --output results/races/all_results_ML_ready.csv
 
-      - name: Validate output
+      - name: Validate ML output
         run: |
-          test -f results/races/all_results_ML_ready.csv || {
-            echo "ERROR: ML-ready CSV was not created."
-            exit 1
-          }
-
           python - <<'PY'
           import pandas as pd
 
@@ -73,52 +127,59 @@ jobs:
 
           df = pd.read_csv(path, low_memory=False)
 
+          print("ML READY OUTPUT")
           print(f"Rows: {len(df):,}")
           print(f"Columns: {len(df.columns):,}")
+          print(f"Races: {df['race_id'].nunique():,}")
+          print(f"Horses: {df['horse_id'].nunique():,}")
 
           if "is_winner" not in df.columns:
-              raise SystemExit("ERROR: is_winner target is missing")
-
-          if "race_id" not in df.columns:
-              raise SystemExit("ERROR: race_id is missing")
+              raise SystemExit("ERROR: is_winner missing")
 
           if df["result_id"].duplicated().any():
-              raise SystemExit("ERROR: duplicate result_id values detected")
+              raise SystemExit("ERROR: duplicate result_id detected")
 
           print()
           print("Target distribution:")
           print(df["is_winner"].value_counts(dropna=False))
 
           print()
-          print("Validation passed.")
+          print("Output validation passed.")
           PY
 
-      - name: Show generated files
+      - name: Configure ML output for Git LFS
         run: |
-          echo "Generated ML files:"
-          ls -lh results/races/all_results_ML_ready.csv*
+          git lfs track "results/races/all_results_ML_ready.csv"
 
-      - name: Ensure output is not Git LFS
+          echo
+          echo ".gitattributes entry:"
+          grep "all_results_ML_ready.csv" .gitattributes || true
+
+          echo
+          echo "Git attribute check:"
+          git check-attr filter -- results/races/all_results_ML_ready.csv
+
+      - name: Verify ML output uses Git LFS
         run: |
           ATTRIBUTE="$(git check-attr filter -- results/races/all_results_ML_ready.csv | awk '{print $3}')"
 
-          if [ "$ATTRIBUTE" = "lfs" ]; then
-            echo "ERROR:"
-            echo "results/races/all_results_ML_ready.csv"
-            echo "is currently configured for Git LFS."
-            echo
-            echo "Remove its Git LFS rule from .gitattributes."
+          if [ "$ATTRIBUTE" != "lfs" ]; then
+            echo "ERROR: all_results_ML_ready.csv is not configured for Git LFS."
             exit 1
           fi
 
-          echo "Confirmed:"
-          echo "ML-ready CSV will be stored as a normal Git file."
+          echo "Confirmed: all_results_ML_ready.csv will be stored in Git LFS."
 
-      - name: Commit generated ML dataset
+      - name: Show generated files
+        run: |
+          ls -lh results/races/all_results_ML_ready.csv*
+
+      - name: Commit ML ready dataset
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          git add .gitattributes
           git add results/races/all_results_ML_ready.csv
 
           if [ -f results/races/all_results_ML_ready.csv.features.json ]; then
